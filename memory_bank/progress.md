@@ -1,5 +1,26 @@
 # 완료된 작업 내역 (Progress)
 
+## [2025-11-15] - 파일 스캔 최적화 및 타임아웃 문제 해결
+- **메모리뱅크 전용 스캔으로 변경**:
+  - `lib/github.ts`의 `getRepositoryTree` 함수 수정
+  - `memory_bank/` 디렉토리 내의 MD 파일만 스캔하도록 필터링 추가
+  - 96개 파일 → 약 6개 파일로 감소 (타임아웃 문제 해결)
+  - Vercel 300초 타임아웃 이내 완료 가능하도록 최적화
+- **파일 스캔 로직 개선**:
+  - 파일 타입 확인 추가 (`type === 'blob'` 필터링)
+  - 디버깅 로그 추가 (발견된 MD 파일 목록 출력)
+  - GitHub API tree truncated 체크 추가
+  - `lib/runInitialScan.ts`에서 중복 필터링 제거
+- **빌드 및 배포 준비**:
+  - Next.js 빌드 성공 확인 (오류 없음)
+  - middleware.ts 파일 삭제 (Next.js 16 deprecated 경고 해결)
+  - GitHub 리포지토리 생성 및 초기 커밋 푸시
+  - Vercel 배포 가이드 문서 작성 (`VERCEL_DEPLOYMENT.md`)
+- **환경 변수 설정 가이드**:
+  - Vercel 배포 시 필요한 환경 변수 목록 정리
+  - 웹훅 URL 자동 생성 로직 확인
+  - GitHub OAuth Callback URL 설정 가이드
+
 ## [2025-11-15] - 프로젝트 임포트 파이프라인 개선 및 기능 추가
 - **프로젝트 삭제 기능 구현**: 
   - `DELETE /api/projects/[id]` API 엔드포인트 생성 (`app/api/projects/[id]/route.ts`)

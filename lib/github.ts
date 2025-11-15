@@ -85,7 +85,26 @@ export async function getRepositoryTree(
     recursive: '1',
   });
   
-  return treeData.tree.filter((item) => item.path?.endsWith('.md'));
+  // Check if tree was truncated (GitHub API limit: 100,000 entries)
+  if (treeData.truncated) {
+    console.warn(`[GITHUB] Repository tree was truncated. Total entries: ${treeData.tree.length}`);
+    // TODO: Handle truncated trees by paginating or using alternative method
+  }
+  
+  // Filter for .md files in memory_bank directory only
+  const mdFiles = treeData.tree.filter(
+    (item) => 
+      item.type === 'blob' && 
+      item.path?.endsWith('.md') &&
+      item.path?.startsWith('memory_bank/')
+  );
+  
+  console.log(`[GITHUB] Found ${mdFiles.length} .md files in memory_bank/ out of ${treeData.tree.length} total items`);
+  if (mdFiles.length > 0) {
+    console.log(`[GITHUB] MD file paths:`, mdFiles.map(f => f.path).join(', '));
+  }
+  
+  return mdFiles;
 }
 
 export async function getFileContent(

@@ -143,10 +143,11 @@ export async function runInitialScan(
     await updateIngestionRun(currentRunId, 'indexing', 'running');
     console.log(`[SCAN] Starting indexing phase for ${repoOwner}/${repoName}`);
     
-    let tree;
+    let mdFiles;
     try {
-      tree = await getRepositoryTree(accessToken, repoOwner, repoName);
-      console.log(`[SCAN] Retrieved repository tree: ${tree.length} items`);
+      // getRepositoryTree already returns filtered .md files
+      mdFiles = await getRepositoryTree(accessToken, repoOwner, repoName);
+      console.log(`[SCAN] Retrieved ${mdFiles.length} markdown files from repository`);
     } catch (error: any) {
       console.error('[SCAN] Error fetching repository tree:', {
         message: error.message,
@@ -157,9 +158,6 @@ export async function runInitialScan(
       });
       throw new Error(`Failed to fetch repository tree: ${error.message}`);
     }
-    
-    const mdFiles = tree.filter((item) => item.path?.endsWith('.md'));
-    console.log(`[SCAN] Found ${mdFiles.length} markdown files`);
 
     await updateScanProgress(currentRunId, projectId, {
       md_total: mdFiles.length,
