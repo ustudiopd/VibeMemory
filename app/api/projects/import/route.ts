@@ -58,96 +58,97 @@ export async function POST(request: NextRequest) {
     }
 
     // CLAIM: Check if job is already running
+    // 먼저 만료된 잠금 정리
+    const { error: cleanupError } = await supabaseAdmin
+      .from('job_locks')
+      .delete()
+      .eq('job_name', jobName)
+      .lt('expires_at', new Date().toISOString());
+    
+    if (cleanupError) {
+      console.warn('[IMPORT] Error cleaning up expired locks:', cleanupError);
+    }
+
     // 프로젝트가 존재하지 않으면 잠금을 강제로 삭제 (삭제된 프로젝트의 잠금 정리)
-    // 프로젝트가 없으면 무조건 잠금 삭제 (임포트 실패 후 재시도 시나리오)
     if (!existingProject) {
-      console.log('[DEBUG] No existing project found, cleaning up any stale locks');
+      console.log('[IMPORT] No existing project found, cleaning up any stale locks');
       const { error: deleteLockError } = await supabaseAdmin
         .from('job_locks')
         .delete()
         .eq('job_name', jobName);
       
       if (deleteLockError) {
-        console.error('[DEBUG] Error deleting stale lock:', deleteLockError);
+        console.error('[IMPORT] Error deleting stale lock:', deleteLockError);
       } else {
-        console.log('[DEBUG] Deleted stale lock for:', jobName);
+        console.log('[IMPORT] Deleted stale lock for:', jobName);
       }
       
       // 잠금 삭제 후 잠시 대기 (동시성 문제 방지)
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    const { data: claimResult, error: claimError } = await supabaseAdmin.rpc(
-      'claim_job',
-      {
+    // 잠금 획득 시도 (최대 3번 재시도)
+    let claimResult: boolean | null = false;
+    let claimError: any = null;
+    
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = await supabaseAdmin.rpc('claim_job', {
         p_job_name: jobName,
         p_duration: '1 hour',
+      });
+      
+      claimResult = result.data;
+      claimError = result.error;
+      
+      if (claimResult) {
+        console.log(`[IMPORT] Successfully claimed job on attempt ${attempt + 1}`);
+        break; // 성공
       }
-    );
-
-    console.log('[DEBUG] claim_job result:', { claimResult, claimError, jobName });
-
-    if (claimError) {
-      console.error('[DEBUG] claim_job error:', claimError);
-      // 프로젝트가 존재하지 않으면 잠금을 강제로 삭제하고 재시도
-      if (!existingProject) {
-        console.log('[DEBUG] Project does not exist, force deleting lock and retrying');
+      
+      if (claimError) {
+        console.error(`[IMPORT] claim_job error (attempt ${attempt + 1}):`, claimError);
+        // RPC 함수가 존재하지 않는 경우 등 심각한 에러
+        if (claimError.message?.includes('function') || claimError.message?.includes('does not exist')) {
+          console.error('[IMPORT] claim_job RPC function may not exist:', claimError);
+          return NextResponse.json(
+            { 
+              error: '시스템 오류가 발생했습니다. 잠금 관리 기능을 사용할 수 없습니다.', 
+              details: claimError.message 
+            },
+            { status: 500 }
+          );
+        }
+      }
+      
+      if (attempt < 2) {
+        // 재시도 전에 잠금 다시 확인 및 정리
+        console.log(`[IMPORT] claim_job failed (attempt ${attempt + 1}), cleaning up and retrying...`);
         await supabaseAdmin
           .from('job_locks')
           .delete()
           .eq('job_name', jobName);
-        
-        // 재시도
-        const { data: retryResult, error: retryError } = await supabaseAdmin.rpc(
-          'claim_job',
-          {
-            p_job_name: jobName,
-            p_duration: '1 hour',
-          }
-        );
-        
-        if (retryError || !retryResult) {
-          return NextResponse.json(
-            { error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.', details: retryError?.message || 'Failed to claim job' },
-            { status: 409 }
-          );
-        }
-        // 재시도 성공, 계속 진행
-      } else {
-        return NextResponse.json(
-          { error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.', details: claimError.message },
-          { status: 409 }
-        );
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
-    } else if (!claimResult) {
-      console.log('[DEBUG] claim_job returned false - job already claimed');
-      // 프로젝트가 존재하지 않으면 잠금을 강제로 삭제하고 재시도
+    }
+
+    if (claimError || !claimResult) {
+      console.error('[IMPORT] Failed to claim job after all retries:', {
+        claimError,
+        claimResult,
+        jobName,
+        attempts: 3,
+      });
+      
+      // 프로젝트가 존재하지 않으면 잠금 없이 진행 (동시성 위험이 있지만 임포트는 강제로 진행)
       if (!existingProject) {
-        console.log('[DEBUG] Project does not exist, force deleting lock and retrying');
-        await supabaseAdmin
-          .from('job_locks')
-          .delete()
-          .eq('job_name', jobName);
-        
-        // 재시도
-        const { data: retryResult, error: retryError } = await supabaseAdmin.rpc(
-          'claim_job',
-          {
-            p_job_name: jobName,
-            p_duration: '1 hour',
-          }
-        );
-        
-        if (retryError || !retryResult) {
-          return NextResponse.json(
-            { error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.' },
-            { status: 409 }
-          );
-        }
-        // 재시도 성공, 계속 진행
+        console.warn('[IMPORT] Project does not exist, proceeding without lock - concurrency risk accepted');
+        // 잠금 없이 계속 진행
       } else {
         return NextResponse.json(
-          { error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.' },
+          { 
+            error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.',
+            details: claimError?.message || 'Failed to claim job after retries'
+          },
           { status: 409 }
         );
       }
