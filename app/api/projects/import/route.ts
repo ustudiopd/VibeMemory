@@ -59,12 +59,22 @@ export async function POST(request: NextRequest) {
 
     // CLAIM: Check if job is already running
     // 프로젝트가 존재하지 않으면 잠금을 강제로 삭제 (삭제된 프로젝트의 잠금 정리)
+    // 프로젝트가 없으면 무조건 잠금 삭제 (임포트 실패 후 재시도 시나리오)
     if (!existingProject) {
       console.log('[DEBUG] No existing project found, cleaning up any stale locks');
-      await supabaseAdmin
+      const { error: deleteLockError } = await supabaseAdmin
         .from('job_locks')
         .delete()
         .eq('job_name', jobName);
+      
+      if (deleteLockError) {
+        console.error('[DEBUG] Error deleting stale lock:', deleteLockError);
+      } else {
+        console.log('[DEBUG] Deleted stale lock for:', jobName);
+      }
+      
+      // 잠금 삭제 후 잠시 대기 (동시성 문제 방지)
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
 
     const { data: claimResult, error: claimError } = await supabaseAdmin.rpc(
@@ -205,18 +215,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Trigger initial scan asynchronously (don't wait for it)
-    runInitialScan(project.id, systemUser.githubAccessToken, repo_owner, repo_name).catch(
-      (error) => {
-        console.error('Error in initial scan:', error);
-      }
-    );
+    // Create ingestion_run with PENDING status (Cron Worker will process it)
+    const { data: newRun, error: runError } = await supabaseAdmin
+      .from('ingestion_runs')
+      .insert({
+        project_id: project.id,
+        phase: 'indexing',
+        status: 'pending',  // Cron Worker가 처리할 작업으로 등록
+      })
+      .select()
+      .single();
+
+    if (runError) {
+      console.error('[IMPORT] Error creating pending ingestion run:', runError);
+      // 에러가 발생해도 프로젝트 생성은 성공으로 처리
+      // (Cron Worker가 다음 실행 시 처리할 수 있음)
+    } else {
+      console.log(`[IMPORT] Created pending ingestion_run: ${newRun.id} for project ${project.id}`);
+      
+      // scan_progress 초기화
+      await supabaseAdmin.from('scan_progress').insert({
+        run_id: newRun.id,
+        project_id: project.id,
+        md_total: 0,
+        md_indexed: 0,
+        chunk_total: 0,
+        review_done: 0,
+        review_total: 4,
+      });
+    }
 
     return NextResponse.json(
       {
         success: true,
         project_id: project.id,
-        message: 'Project imported successfully. Initial scan started.',
+        message: 'Project imported successfully. Initial scan will start shortly.',
       },
       { status: 201 }
     );

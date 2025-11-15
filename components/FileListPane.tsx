@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface FileInfo {
   id: string;
@@ -14,33 +14,52 @@ interface FileInfo {
 
 interface FileListPaneProps {
   projectId: string;
+  enabled?: boolean; // 탭이 활성화되어 있을 때만 호출
 }
 
-export default function FileListPane({ projectId }: FileListPaneProps) {
+export default function FileListPane({ projectId, enabled = true }: FileListPaneProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const lastFetchTimeRef = useRef<number>(0);
+  const isFetchingRef = useRef<boolean>(false);
 
-  useEffect(() => {
-    fetchFiles();
-  }, [projectId]);
+  const fetchFiles = useCallback(async () => {
+    // enabled가 false면 호출하지 않음
+    if (!enabled) return;
+    
+    // 중복 호출 방지: 이미 최근 10초 이내에 호출했으면 스킵
+    const now = Date.now();
+    if (isFetchingRef.current || (now - lastFetchTimeRef.current < 10000)) {
+      return;
+    }
 
-  const fetchFiles = async () => {
     try {
+      isFetchingRef.current = true;
       setLoading(true);
       const response = await fetch(`/api/projects/${projectId}/files`);
       if (response.ok) {
         const data = await response.json();
         setFiles(data.files || []);
+        lastFetchTimeRef.current = Date.now();
       }
     } catch (error) {
       console.error('Error fetching files:', error);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  };
+  }, [projectId, enabled]);
+
+  useEffect(() => {
+    // enabled가 true이고 projectId가 변경될 때만 초기 로드
+    if (enabled) {
+      lastFetchTimeRef.current = 0; // 초기화하여 즉시 로드 가능하도록
+      fetchFiles();
+    }
+  }, [projectId, enabled, fetchFiles]);
 
   const handlePreview = async (path: string) => {
     if (previewPath === path && previewContent) {

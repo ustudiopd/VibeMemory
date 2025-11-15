@@ -1,5 +1,43 @@
 @import "tailwindcss";
 
+/* Safe Area 지원 (iOS 노치 대응) */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-right {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* 터치 최적화 */
+* {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* 최소 터치 타겟 크기 */
+button, a, [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 작은 버튼도 터치 가능하도록 */
+button.text-sm, a.text-sm {
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+}
+
 /* 한글 문단 가독성 */
 .kor-wrap {
   word-break: keep-all;

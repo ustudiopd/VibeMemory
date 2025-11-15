@@ -1,10 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "VibeMemory - 개발자 지식 자산 관리",
   description: "GitHub 리포지토리를 지능형 지식 자산으로 변환하는 시스템",
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: 'cover', // iOS Safe Area 지원
 };
 
 export default function RootLayout({

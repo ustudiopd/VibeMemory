@@ -17,18 +17,27 @@ interface Repository {
   default_branch?: string;
 }
 
+interface ImportedProject {
+  id: string;
+  repo_owner: string;
+  repo_name: string;
+  repo_url: string;
+}
+
 export default function ImportPage() {
   const router = useRouter();
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [filteredRepositories, setFilteredRepositories] = useState<Repository[]>([]);
+  const [importedProjects, setImportedProjects] = useState<Map<string, ImportedProject>>(new Map());
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    // 로그인 없이 바로 리포지토리 로드
+    // 로그인 없이 바로 리포지토리 및 임포트된 프로젝트 로드
     fetchRepositories();
+    fetchImportedProjects();
   }, []);
 
   const fetchRepositories = async () => {
@@ -52,6 +61,32 @@ export default function ImportPage() {
       setError(error instanceof Error ? error.message : '리포지토리를 불러오는데 실패했습니다.');
       setLoading(false);
     }
+  };
+
+  const fetchImportedProjects = async () => {
+    try {
+      const response = await fetch('/api/projects');
+      if (response.ok) {
+        const data = await response.json();
+        const projects = data.projects || [];
+        
+        // repo_url을 키로 하는 Map 생성
+        const projectMap = new Map<string, ImportedProject>();
+        projects.forEach((project: ImportedProject) => {
+          projectMap.set(project.repo_url, project);
+        });
+        
+        setImportedProjects(projectMap);
+      }
+    } catch (error) {
+      console.error('Error fetching imported projects:', error);
+      // 에러가 발생해도 계속 진행 (임포트된 프로젝트 표시는 선택적 기능)
+    }
+  };
+
+  const isImported = (repo: Repository): ImportedProject | null => {
+    const repoUrl = `https://github.com/${repo.owner.login}/${repo.name}`;
+    return importedProjects.get(repoUrl) || null;
   };
 
   const handleSearch = (query: string) => {
@@ -111,6 +146,37 @@ export default function ImportPage() {
     }
   };
 
+  const handleResetLocks = async (repo?: Repository) => {
+    try {
+      const response = await fetch('/api/projects/import/reset-locks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(
+          repo
+            ? {
+                repo_owner: repo.owner.login,
+                repo_name: repo.name,
+              }
+            : {}
+        ),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '잠금 초기화에 실패했습니다.');
+      }
+
+      alert(data.message || '잠금이 초기화되었습니다.');
+      setError(null);
+    } catch (error) {
+      console.error('Error resetting locks:', error);
+      alert(error instanceof Error ? error.message : '잠금 초기화에 실패했습니다.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -123,7 +189,7 @@ export default function ImportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-16 md:pb-0">
       <nav className="bg-white shadow">
         <div className="mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1600px' }}>
           <div className="flex justify-between h-16">
@@ -155,7 +221,17 @@ export default function ImportPage() {
 
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-800">{error}</p>
+              <div className="flex justify-between items-start">
+                <p className="text-sm text-red-800 flex-1">{error}</p>
+                {error.includes('임포트 중') && (
+                  <button
+                    onClick={() => handleResetLocks()}
+                    className="ml-4 px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                  >
+                    잠금 초기화
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -233,23 +309,48 @@ export default function ImportPage() {
                       최근 업데이트: {new Date(repo.updated_at).toLocaleDateString('ko-KR')}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleImport(repo)}
-                    disabled={importing === repo.full_name}
-                    className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                  >
-                    {importing === repo.full_name ? (
-                      <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        가져오는 중...
-                      </span>
-                    ) : (
-                      '가져오기'
-                    )}
-                  </button>
+                  {(() => {
+                    const importedProject = isImported(repo);
+                    const isAlreadyImported = !!importedProject;
+                    
+                    return (
+                      <button
+                        onClick={() => {
+                          if (isAlreadyImported && importedProject) {
+                            // 이미 임포트된 프로젝트는 상세 페이지로 이동
+                            router.push(`/dashboard/projects/${importedProject.id}`);
+                          } else {
+                            // 새로 임포트
+                            handleImport(repo);
+                          }
+                        }}
+                        disabled={importing === repo.full_name}
+                        className={`
+                          px-6 py-2 rounded-lg transition-colors whitespace-nowrap min-h-[44px] touch-manipulation
+                          ${isAlreadyImported
+                            ? 'bg-gray-300 text-gray-600 cursor-pointer hover:bg-gray-400'
+                            : 'bg-slate-600 text-white hover:bg-slate-700 active:bg-slate-800'
+                          }
+                          disabled:opacity-50 disabled:cursor-not-allowed
+                        `}
+                        title={isAlreadyImported ? '이미 임포트된 프로젝트입니다. 클릭하여 상세 페이지로 이동합니다.' : '프로젝트 가져오기'}
+                      >
+                        {importing === repo.full_name ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            가져오는 중...
+                          </span>
+                        ) : isAlreadyImported ? (
+                          '이미 가져옴'
+                        ) : (
+                          '가져오기'
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
                   ))
                 )}

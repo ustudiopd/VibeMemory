@@ -246,20 +246,20 @@ export default function ChatInterface({ projectId }: ChatInterfaceProps) {
         )}
         <div ref={messagesEndRef} />
       </div>
-      <form onSubmit={handleSubmit} className="border-t p-6 w-full">
+      <form onSubmit={handleSubmit} className="border-t p-4 md:p-6 w-full bg-white safe-bottom">
         <div className="flex space-x-2 w-full">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="질문을 입력하세요..."
-            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500"
+            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 min-h-[44px] touch-manipulation"
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 md:px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 active:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-h-[44px] touch-manipulation"
           >
             전송
           </button>

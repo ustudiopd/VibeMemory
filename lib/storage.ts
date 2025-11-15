@@ -2,20 +2,32 @@ import { supabaseAdmin } from './supabase';
 
 const BUCKET_NAME = 'repo-files';
 
+// 버킷 확인 결과 캐싱 (한 번만 확인)
+let bucketChecked = false;
+let bucketExists = false;
+
 /**
  * Storage 버킷이 존재하는지 확인하고 없으면 생성
+ * 최적화: 한 번만 확인하고 결과를 캐싱합니다.
  */
 async function ensureBucketExists(): Promise<boolean> {
+  // 이미 확인했다면 캐시된 결과 반환
+  if (bucketChecked) {
+    return bucketExists;
+  }
+
   try {
     // 버킷 목록 확인
     const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets();
     
     if (listError) {
       console.error('[STORAGE] Error listing buckets:', listError);
+      bucketChecked = true;
+      bucketExists = false;
       return false;
     }
     
-    const bucketExists = buckets?.some(bucket => bucket.name === BUCKET_NAME);
+    bucketExists = buckets?.some(bucket => bucket.name === BUCKET_NAME) ?? false;
     
     if (!bucketExists) {
       console.log(`[STORAGE] Creating bucket: ${BUCKET_NAME}`);
@@ -28,15 +40,21 @@ async function ensureBucketExists(): Promise<boolean> {
       
       if (createError) {
         console.error(`[STORAGE] Error creating bucket:`, createError);
+        bucketChecked = true;
+        bucketExists = false;
         return false;
       }
       
       console.log(`[STORAGE] Bucket created: ${BUCKET_NAME}`);
+      bucketExists = true;
     }
     
-    return true;
+    bucketChecked = true;
+    return bucketExists;
   } catch (error) {
     console.error('[STORAGE] Exception ensuring bucket exists:', error);
+    bucketChecked = true;
+    bucketExists = false;
     return false;
   }
 }

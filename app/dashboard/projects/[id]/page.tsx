@@ -65,14 +65,19 @@ export default function ProjectDetailPage() {
   });
   const [commits, setCommits] = useState<any[]>([]);
   const [loadingCommits, setLoadingCommits] = useState(false);
+  const [comments, setComments] = useState<any[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   useEffect(() => {
     if (projectId) {
       fetchProject();
       fetchProjectDetails();
-      fetchProgress();
+      // fetchProgress() 제거 - ProgressBanner가 SSE로 처리
       fetchAnalysis();
       fetchCommits();
+      fetchComments();
     }
   }, [projectId]);
 
@@ -88,6 +93,51 @@ export default function ProjectDetailPage() {
       console.error('Error fetching commits:', error);
     } finally {
       setLoadingCommits(false);
+    }
+  };
+
+  const fetchComments = async () => {
+    setLoadingComments(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/comments`);
+      if (response.ok) {
+        const data = await response.json();
+        setComments(data.comments || []);
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim() || submittingComment) return;
+
+    setSubmittingComment(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: newComment }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setComments([data.comment, ...comments]);
+        setNewComment('');
+      } else {
+        const errorData = await response.json();
+        alert(`댓글 작성에 실패했습니다: ${errorData.error || '알 수 없는 오류'}`);
+      }
+    } catch (error) {
+      console.error('Error submitting comment:', error);
+      alert('댓글 작성 중 오류가 발생했습니다.');
+    } finally {
+      setSubmittingComment(false);
     }
   };
 
@@ -395,7 +445,7 @@ export default function ProjectDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-16 md:pb-0">
       <nav className="bg-white shadow">
         <div className="mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1600px' }}>
           <div className="flex justify-between h-16">
@@ -430,14 +480,15 @@ export default function ProjectDetailPage() {
             </div>
             <button
               onClick={handleRescan}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              data-rescan-button
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm font-medium min-h-[44px] touch-manipulation"
             >
               🔄 재스캔
             </button>
           </div>
 
-          {/* 탭 네비게이션 */}
-          <div className="bg-white rounded-t-lg shadow-sm border-b border-gray-200">
+          {/* 탭 네비게이션 - 데스크톱 */}
+          <div className="hidden md:block bg-white rounded-t-lg shadow-sm border-b border-gray-200">
             <div className="flex space-x-1 px-4">
               {tabs.map((tab) => (
                 <button
@@ -452,6 +503,29 @@ export default function ProjectDetailPage() {
                   `}
                 >
                   <span className="mr-2">{tab.icon}</span>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 탭 네비게이션 - 모바일 (스크롤 가능) */}
+          <div className="md:hidden bg-white rounded-t-lg shadow-sm border-b border-gray-200 overflow-x-auto">
+            <div className="flex space-x-1 px-4 min-w-max">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap
+                    flex-shrink-0 min-h-[44px] touch-manipulation
+                    ${activeTab === tab.id
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-600 active:bg-gray-100'
+                    }
+                  `}
+                >
+                  <span className="mr-1">{tab.icon}</span>
                   {tab.label}
                 </button>
               ))}
@@ -687,6 +761,63 @@ export default function ProjectDetailPage() {
                         />
                       </div>
                     )}
+
+                    {/* 댓글 섹션 */}
+                    <div className="bg-white rounded-lg p-6 border border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">댓글</h3>
+                      
+                      {/* 댓글 작성 폼 */}
+                      <form onSubmit={handleSubmitComment} className="mb-6">
+                        <textarea
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          placeholder="댓글을 입력하세요..."
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                          disabled={submittingComment}
+                        />
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={!newComment.trim() || submittingComment}
+                            className="px-4 py-2 text-sm font-medium text-white bg-slate-600 rounded-md hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {submittingComment ? '작성 중...' : '댓글 작성'}
+                          </button>
+                        </div>
+                      </form>
+
+                      {/* 댓글 목록 */}
+                      {loadingComments ? (
+                        <div className="text-center py-4">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-slate-600 mx-auto"></div>
+                          <p className="mt-2 text-sm text-gray-600">댓글을 불러오는 중...</p>
+                        </div>
+                      ) : comments.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-4">아직 댓글이 없습니다.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {comments.map((comment) => (
+                            <div key={comment.id} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex-1">
+                                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</p>
+                                </div>
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {new Date(comment.created_at).toLocaleString('ko-KR', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
                     {/* 기술 스펙 */}
                     {project?.tech_spec && (
@@ -1082,7 +1213,7 @@ export default function ProjectDetailPage() {
                   <ProgressBanner projectId={projectId} />
 
                   {/* 파일 목록 */}
-                  <FileListPane projectId={projectId} />
+                  <FileListPane projectId={projectId} enabled={activeTab === 'progress'} />
                 </div>
               </div>
             )}

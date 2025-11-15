@@ -90,7 +90,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-16 md:pb-0">
       <nav className="bg-white shadow">
         <div className="mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1600px' }}>
           <div className="flex justify-between h-16">
@@ -125,7 +125,7 @@ export default function DashboardPage() {
           <div className="mb-4">
             <Link
               href="/dashboard/import"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-slate-600 hover:bg-slate-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-slate-600 hover:bg-slate-700 active:bg-slate-800 transition-colors min-h-[44px] touch-manipulation"
             >
               프로젝트 가져오기
             </Link>
@@ -146,7 +146,14 @@ export default function DashboardPage() {
               {projects.map((project) => (
                 <div
                   key={project.id}
-                  className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative"
+                  className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative cursor-pointer"
+                  onClick={(e) => {
+                    // 삭제 버튼 클릭 시에는 카드 클릭 이벤트 무시
+                    if ((e.target as HTMLElement).closest('button')) {
+                      return;
+                    }
+                    window.location.href = `/dashboard/projects/${project.id}`;
+                  }}
                 >
                   <h3 className="text-lg font-semibold text-gray-900">
                     {project.project_name || project.repo_name}
@@ -155,21 +162,21 @@ export default function DashboardPage() {
                     {project.repo_owner}
                   </p>
                   {project.description && (
-                    <p className="text-sm text-gray-700 mt-3 line-clamp-2">
-                      {project.description}
-                    </p>
+                    <div className="mt-3">
+                      <p className="text-xs font-medium text-gray-500 mb-1">프로젝트 소개</p>
+                      <p className="text-sm text-gray-700 line-clamp-3">
+                        {project.description}
+                      </p>
+                    </div>
                   )}
-                  <div className="mt-4 flex items-center justify-between">
-                    <Link
-                      href={`/dashboard/projects/${project.id}`}
-                      className="text-sm text-slate-600 hover:text-slate-800 transition-colors"
-                    >
-                      자세히 보기 →
-                    </Link>
+                  <div className="mt-4 flex items-center justify-end">
                     <button
-                      onClick={() => handleDeleteClick(project.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(project.id);
+                      }}
                       disabled={deletingId === project.id}
-                      className="text-sm text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-sm text-red-600 hover:text-red-800 active:text-red-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] px-3 py-2 touch-manipulation"
                     >
                       {deletingId === project.id ? '삭제 중...' : '삭제'}
                     </button>

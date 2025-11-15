@@ -39,48 +39,15 @@ export default function ProgressBanner({ projectId }: ProgressBannerProps) {
   });
   const [isConnected, setIsConnected] = useState(false);
 
-  // 초기 데이터 로드 (폴링 API 사용)
-  useEffect(() => {
-    const fetchInitialProgress = async () => {
-      try {
-        const response = await fetch(`/api/projects/${projectId}/progress`);
-        if (response.ok) {
-          const data = await response.json();
-          
-          // 기존 get_project_progress RPC 결과를 새로운 형식으로 변환
-          if (data.P1) {
-            setCounters((prev) => ({
-              ...prev,
-              md_total: data.P1.total_md || 0,
-              md_indexed: data.P1.indexed_md || 0,
-            }));
-          }
-          if (data.P2) {
-            setCounters((prev) => ({
-              ...prev,
-              chunk_total: data.P2.embedded_chunks || 0,
-            }));
-          }
-          if (data.P3) {
-            setCounters((prev) => ({
-              ...prev,
-              review_done: data.P3.core_done || 0,
-              review_total: data.P3.core_total || 4,  // 프로젝트 개요 포함하여 4단계
-            }));
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching initial progress:', error);
-      }
-    };
-
-    fetchInitialProgress();
-  }, [projectId]);
-
+  // SSE 연결 (초기 폴링 제거, SSE만 사용)
   useEffect(() => {
     let abortController: AbortController | null = null;
+    let closed = false;
+    let isCompleted = false; // 완료 상태 추적
 
     const connectSSE = () => {
+      if (closed || isCompleted) return;
+      
       abortController = new AbortController();
 
       fetchEventSource(`/api/projects/${projectId}/progress/stream`, {
@@ -97,13 +64,28 @@ export default function ProgressBanner({ projectId }: ProgressBannerProps) {
           try {
             const data = JSON.parse(event.data);
 
-            if (event.event === 'phase') {
+            if (event.event === 'ready') {
+              // 연결 준비 완료
+              console.log('SSE ready');
+            } else if (event.event === 'phase') {
               setPhase(data);
+              // 완료 상태 확인
+              if (data.status === 'completed' || data.status === 'failed') {
+                isCompleted = true;
+              }
             } else if (event.event === 'counters') {
               setCounters((prev) => ({ ...prev, ...data }));
             } else if (event.event === 'done') {
               setPhase(data);
               setIsConnected(false);
+              // 완료 또는 실패 시 재연결하지 않음
+              if (data.status === 'completed' || data.status === 'failed') {
+                isCompleted = true;
+                closed = true;
+                if (abortController) {
+                  abortController.abort();
+                }
+              }
             }
           } catch (error) {
             console.error('Error parsing SSE message:', error);
@@ -112,16 +94,28 @@ export default function ProgressBanner({ projectId }: ProgressBannerProps) {
         onerror(error) {
           console.error('SSE error:', error);
           setIsConnected(false);
-          // 재연결 시도 (2초 후)
-          setTimeout(() => {
-            if (abortController && !abortController.signal.aborted) {
-              connectSSE();
-            }
-          }, 2000);
+          // 완료된 프로젝트는 재연결하지 않음
+          if (!closed && !isCompleted) {
+            // 재연결 시도 (3초 후) - 너무 빠른 재연결 방지
+            setTimeout(() => {
+              if (!closed && !isCompleted && abortController && !abortController.signal.aborted) {
+                connectSSE();
+              }
+            }, 3000);
+          }
         },
         onclose() {
           setIsConnected(false);
           console.log('SSE connection closed');
+          // 완료된 프로젝트는 재연결하지 않음
+          if (!closed && !isCompleted) {
+            // 재연결 시도 (3초 후) - 너무 빠른 재연결 방지
+            setTimeout(() => {
+              if (!closed && !isCompleted) {
+                connectSSE();
+              }
+            }, 3000);
+          }
         },
       });
     };
@@ -129,6 +123,7 @@ export default function ProgressBanner({ projectId }: ProgressBannerProps) {
     connectSSE();
 
     return () => {
+      closed = true;
       if (abortController) {
         abortController.abort();
       }
