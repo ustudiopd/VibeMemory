@@ -149,11 +149,16 @@ export default function DashboardPage() {
                   className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative"
                 >
                   <h3 className="text-lg font-semibold text-gray-900">
-                    {project.repo_name}
+                    {project.project_name || project.repo_name}
                   </h3>
                   <p className="text-sm text-gray-600 mt-1">
                     {project.repo_owner}
                   </p>
+                  {project.description && (
+                    <p className="text-sm text-gray-700 mt-3 line-clamp-2">
+                      {project.description}
+                    </p>
+                  )}
                   <div className="mt-4 flex items-center justify-between">
                     <Link
                       href={`/dashboard/projects/${project.id}`}

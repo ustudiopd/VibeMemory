@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { createWebhook } from '@/lib/github';
+import { createWebhook, getRepositoryInfo } from '@/lib/github';
 import { runInitialScan } from '@/lib/runInitialScan';
 import { getSystemUser, getSystemUserFromSupabase } from '@/lib/system-user';
 
@@ -58,6 +58,15 @@ export async function POST(request: NextRequest) {
     }
 
     // CLAIM: Check if job is already running
+    // 프로젝트가 존재하지 않으면 잠금을 강제로 삭제 (삭제된 프로젝트의 잠금 정리)
+    if (!existingProject) {
+      console.log('[DEBUG] No existing project found, cleaning up any stale locks');
+      await supabaseAdmin
+        .from('job_locks')
+        .delete()
+        .eq('job_name', jobName);
+    }
+
     const { data: claimResult, error: claimError } = await supabaseAdmin.rpc(
       'claim_job',
       {
@@ -70,18 +79,86 @@ export async function POST(request: NextRequest) {
 
     if (claimError) {
       console.error('[DEBUG] claim_job error:', claimError);
-      return NextResponse.json(
-        { error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.', details: claimError.message },
-        { status: 409 }
-      );
+      // 프로젝트가 존재하지 않으면 잠금을 강제로 삭제하고 재시도
+      if (!existingProject) {
+        console.log('[DEBUG] Project does not exist, force deleting lock and retrying');
+        await supabaseAdmin
+          .from('job_locks')
+          .delete()
+          .eq('job_name', jobName);
+        
+        // 재시도
+        const { data: retryResult, error: retryError } = await supabaseAdmin.rpc(
+          'claim_job',
+          {
+            p_job_name: jobName,
+            p_duration: '1 hour',
+          }
+        );
+        
+        if (retryError || !retryResult) {
+          return NextResponse.json(
+            { error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.', details: retryError?.message || 'Failed to claim job' },
+            { status: 409 }
+          );
+        }
+        // 재시도 성공, 계속 진행
+      } else {
+        return NextResponse.json(
+          { error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.', details: claimError.message },
+          { status: 409 }
+        );
+      }
+    } else if (!claimResult) {
+      console.log('[DEBUG] claim_job returned false - job already claimed');
+      // 프로젝트가 존재하지 않으면 잠금을 강제로 삭제하고 재시도
+      if (!existingProject) {
+        console.log('[DEBUG] Project does not exist, force deleting lock and retrying');
+        await supabaseAdmin
+          .from('job_locks')
+          .delete()
+          .eq('job_name', jobName);
+        
+        // 재시도
+        const { data: retryResult, error: retryError } = await supabaseAdmin.rpc(
+          'claim_job',
+          {
+            p_job_name: jobName,
+            p_duration: '1 hour',
+          }
+        );
+        
+        if (retryError || !retryResult) {
+          return NextResponse.json(
+            { error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.' },
+            { status: 409 }
+          );
+        }
+        // 재시도 성공, 계속 진행
+      } else {
+        return NextResponse.json(
+          { error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.' },
+          { status: 409 }
+        );
+      }
     }
 
-    if (!claimResult) {
-      console.log('[DEBUG] claim_job returned false - job already claimed');
-      return NextResponse.json(
-        { error: '이 리포지토리는 현재 임포트 중입니다. 잠시 후 다시 시도해주세요.' },
-        { status: 409 }
+    // Get GitHub repository info to auto-fill project details
+    let repoInfo: any = null;
+    try {
+      repoInfo = await getRepositoryInfo(
+        systemUser.githubAccessToken,
+        repo_owner,
+        repo_name
       );
+      console.log('[IMPORT] Fetched GitHub repository info:', {
+        name: repoInfo.name,
+        description: repoInfo.description,
+        homepage: repoInfo.homepage,
+      });
+    } catch (error) {
+      console.error('[IMPORT] Error fetching repository info:', error);
+      // Continue without repo info if fetch fails
     }
 
     // Create webhook
@@ -103,7 +180,7 @@ export async function POST(request: NextRequest) {
       // Continue without webhook if creation fails
     }
 
-    // Insert project into database
+    // Insert project into database with GitHub info
     const { data: project, error: insertError } = await supabaseAdmin
       .from('projects')
       .insert({
@@ -112,6 +189,11 @@ export async function POST(request: NextRequest) {
         repo_name,
         repo_url: repoUrl,
         webhook_id: webhookId,
+        // Auto-fill from GitHub repository info
+        project_name: repoInfo?.name || repo_name,
+        description: repoInfo?.description || null,
+        deployment_url: repoInfo?.homepage || null,
+        repository_url: repoInfo?.html_url || repoUrl,
       })
       .select()
       .single();

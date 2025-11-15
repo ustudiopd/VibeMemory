@@ -98,11 +98,15 @@ export default function ProjectDetailPage() {
         const data = await response.json();
         setEditData((prev) => ({
           ...prev,
-          project_name: prev.project_name || data.name || '',
-          description: prev.description || data.description || '',
-          repository_url: prev.repository_url || data.html_url || '',
+          project_name: data.name || prev.project_name || '',
+          description: data.description || prev.description || '',
+          repository_url: data.html_url || prev.repository_url || '',
+          deployment_url: data.homepage || prev.deployment_url || '',
         }));
         alert('GitHub 정보를 불러왔습니다.');
+      } else {
+        const errorData = await response.json();
+        alert(`GitHub 정보를 불러오는데 실패했습니다: ${errorData.error || '알 수 없는 오류'}`);
       }
     } catch (error) {
       console.error('Error loading GitHub info:', error);
@@ -641,7 +645,18 @@ export default function ProjectDetailPage() {
                         <div>
                           <span className="text-sm font-medium text-gray-600">저장소</span>
                           <p className="text-lg text-gray-900 mt-1">
-                            {project?.repo_owner}/{project?.repo_name}
+                            {project?.repository_url ? (
+                              <a
+                                href={project.repository_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline"
+                              >
+                                {project.repo_owner}/{project.repo_name}
+                              </a>
+                            ) : (
+                              `${project?.repo_owner || ''}/${project?.repo_name || ''}`
+                            )}
                           </p>
                         </div>
                         {project?.deployment_url && (
@@ -655,21 +670,6 @@ export default function ProjectDetailPage() {
                                 className="text-blue-600 hover:underline"
                               >
                                 {project.deployment_url}
-                              </a>
-                            </p>
-                          </div>
-                        )}
-                        {project?.repository_url && (
-                          <div>
-                            <span className="text-sm font-medium text-gray-600">저장소 URL</span>
-                            <p className="text-lg text-gray-900 mt-1">
-                              <a
-                                href={project.repository_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline"
-                              >
-                                {project.repository_url}
                               </a>
                             </p>
                           </div>
@@ -696,15 +696,6 @@ export default function ProjectDetailPage() {
                           className="prose prose-lg max-w-none text-gray-700 font-mono text-sm whitespace-pre-wrap"
                           dangerouslySetInnerHTML={{ __html: formatMarkdown(project.tech_spec) }}
                         />
-                      </div>
-                    )}
-
-                    {/* 기술 스펙이 없을 때 안내 */}
-                    {!project?.tech_spec && (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <p className="text-sm text-yellow-800">
-                          💡 기술 스펙이 아직 입력되지 않았습니다. 편집 버튼을 눌러 기술 스택을 추가해보세요.
-                        </p>
                       </div>
                     )}
                   </div>

@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       // Fallback to direct table access if RPC fails
       const { data: projectsDirect, error: directError } = await supabaseAdmin
         .from('projects')
-        .select('id, repo_name, repo_owner, repo_url, created_at, updated_at')
+        .select('id, repo_name, repo_owner, repo_url, project_name, description, created_at, updated_at')
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
