@@ -136,27 +136,29 @@ export default function ProgressBanner({ projectId }: ProgressBannerProps) {
   const isFailed = phase.status === 'failed';
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">
+    <div className="bg-white rounded-none md:rounded-lg shadow p-3 md:p-6 mb-4 md:mb-6">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1 min-w-0 pr-2">
+          <h3 className="text-base md:text-lg font-semibold text-gray-900">
             {isRunning && '🔄 '}
             {isCompleted && '✅ '}
             {isFailed && '❌ '}
             {isCompleted ? '완료되었습니다' : isFailed ? '실패했습니다' : `현재 ${phaseLabel} 중입니다`}
           </h3>
-          <p className="text-sm text-gray-600 mt-1">
-            {counters.md_total > 0 && `${counters.md_total}개의 MD 파일을 찾았습니다.`}
-          </p>
+          {counters.md_total > 0 && (
+            <p className="text-xs md:text-sm text-gray-600 mt-1 whitespace-nowrap overflow-hidden text-ellipsis">
+              {counters.md_total}개 파일 찾았습니다
+            </p>
+          )}
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1 md:space-x-2 flex-shrink-0">
           <div
             className={`w-2 h-2 rounded-full ${
               isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
             }`}
             title={isConnected ? '실시간 연결됨' : '연결 끊김'}
           />
-          <span className="text-xs text-gray-500">
+          <span className="text-[10px] md:text-xs text-gray-500 whitespace-nowrap">
             {isConnected ? '실시간' : '오프라인'}
           </span>
         </div>

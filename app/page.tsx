@@ -13,7 +13,7 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex justify-center p-8" style={{ paddingTop: '33vh' }}>
+      <main className="flex-1 flex justify-center p-8 pt-8">
         <div className="max-w-4xl w-full text-center">
           <h2 className="text-5xl font-bold text-gray-900 mb-6">
             개발자의 GitHub 리포지토리를

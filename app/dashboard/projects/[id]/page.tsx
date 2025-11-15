@@ -69,6 +69,18 @@ export default function ProjectDetailPage() {
   const [loadingComments, setLoadingComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    // 모바일 여부 감지
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     if (projectId) {
@@ -166,25 +178,35 @@ export default function ProjectDetailPage() {
 
   const fetchProject = async () => {
     try {
+      console.log('[PROJECT DETAIL] Fetching project:', projectId);
       const response = await fetch(`/api/projects`);
-      if (response.ok) {
-        const data = await response.json();
-        const foundProject = data.projects?.find((p: any) => p.id === projectId);
-        if (foundProject) {
-          setProject(foundProject);
-          // 편집 데이터 초기화
-          setEditData({
-            project_name: foundProject.project_name || foundProject.repo_name || '',
-            description: foundProject.description || '',
-            tech_spec: foundProject.tech_spec || '',
-            deployment_url: foundProject.deployment_url || '',
-            repository_url: foundProject.repository_url || foundProject.repo_url || '',
-            documentation_url: foundProject.documentation_url || '',
-          });
-        }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[PROJECT DETAIL] Failed to fetch projects:', response.status, errorData);
+        alert(`프로젝트 목록을 불러오는데 실패했습니다: ${errorData.error || response.statusText}`);
+        return;
+      }
+      const data = await response.json();
+      const foundProject = data.projects?.find((p: any) => p.id === projectId);
+      if (foundProject) {
+        console.log('[PROJECT DETAIL] Project found:', foundProject.repo_name);
+        setProject(foundProject);
+        // 편집 데이터 초기화
+        setEditData({
+          project_name: foundProject.project_name || foundProject.repo_name || '',
+          description: foundProject.description || '',
+          tech_spec: foundProject.tech_spec || '',
+          deployment_url: foundProject.deployment_url || '',
+          repository_url: foundProject.repository_url || foundProject.repo_url || '',
+          documentation_url: foundProject.documentation_url || '',
+        });
+      } else {
+        console.warn('[PROJECT DETAIL] Project not found in list:', projectId);
+        alert('프로젝트를 찾을 수 없습니다.');
       }
     } catch (error) {
-      console.error('Error fetching project:', error);
+      console.error('[PROJECT DETAIL] Error fetching project:', error);
+      alert(`프로젝트를 불러오는 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setLoading(false);
     }
@@ -192,23 +214,30 @@ export default function ProjectDetailPage() {
 
   const fetchProjectDetails = async () => {
     try {
+      console.log('[PROJECT DETAIL] Fetching project details:', projectId);
       const response = await fetch(`/api/projects/${projectId}/overview-edit`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.project) {
-          setProject((prev: any) => ({ ...prev, ...data.project }));
-          setEditData({
-            project_name: data.project.project_name || data.project.repo_name || '',
-            description: data.project.description || '',
-            tech_spec: data.project.tech_spec || '',
-            deployment_url: data.project.deployment_url || '',
-            repository_url: data.project.repository_url || data.project.repo_url || '',
-            documentation_url: data.project.documentation_url || '',
-          });
-        }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[PROJECT DETAIL] Failed to fetch project details:', response.status, errorData);
+        // 상세 정보가 없을 수 있으므로 에러는 로그만 남김
+        return;
+      }
+      const data = await response.json();
+      if (data.project) {
+        console.log('[PROJECT DETAIL] Project details loaded');
+        setProject((prev: any) => ({ ...prev, ...data.project }));
+        setEditData({
+          project_name: data.project.project_name || data.project.repo_name || '',
+          description: data.project.description || '',
+          tech_spec: data.project.tech_spec || '',
+          deployment_url: data.project.deployment_url || '',
+          repository_url: data.project.repository_url || data.project.repo_url || '',
+          documentation_url: data.project.documentation_url || '',
+        });
       }
     } catch (error) {
-      console.error('Error fetching project details:', error);
+      console.error('[PROJECT DETAIL] Error fetching project details:', error);
+      // 상세 정보가 없을 수 있으므로 에러는 로그만 남김
     }
   };
 
@@ -254,21 +283,28 @@ export default function ProjectDetailPage() {
 
   const fetchAnalysis = async () => {
     try {
+      console.log('[PROJECT DETAIL] Fetching analysis:', projectId);
       const response = await fetch(`/api/projects/${projectId}/analysis`);
-      if (response.ok) {
-        const data = await response.json();
-        setAnalysis(data.analysis);
-        
-        // 프로젝트 개요도 함께 설정 (project_analysis 테이블에 저장됨)
-        if (data.analysis?.project_overview) {
-          setOverview({
-            overview: data.analysis.project_overview,
-            source_file: null,
-          });
-        }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[PROJECT DETAIL] Failed to fetch analysis:', response.status, errorData);
+        // 분석 데이터가 없을 수 있으므로 에러는 로그만 남김
+        return;
+      }
+      const data = await response.json();
+      console.log('[PROJECT DETAIL] Analysis data:', data.analysis ? 'Found' : 'Not found');
+      setAnalysis(data.analysis);
+      
+      // 프로젝트 개요도 함께 설정 (project_analysis 테이블에 저장됨)
+      if (data.analysis?.project_overview) {
+        setOverview({
+          overview: data.analysis.project_overview,
+          source_file: null,
+        });
       }
     } catch (error) {
-      console.error('Error fetching analysis:', error);
+      console.error('[PROJECT DETAIL] Error fetching analysis:', error);
+      // 분석 데이터가 없을 수 있으므로 에러는 로그만 남김
     }
   };
 
@@ -420,6 +456,12 @@ export default function ProjectDetailPage() {
     { id: 'chat' as TabType, label: '챗봇', icon: '💬' },
   ];
 
+  // 모바일 탭 제목 매핑
+  const getMobileTabTitle = (tabId: TabType) => {
+    const tab = tabs.find(t => t.id === tabId);
+    return tab ? tab.label : '';
+  };
+
   // 프로젝트 개요 가져오기
   const getProjectOverview = () => {
     // analysis에서 project_overview를 우선 확인
@@ -445,8 +487,9 @@ export default function ProjectDetailPage() {
   };
 
   return (
-    <div className={`min-h-screen bg-gray-50 ${activeTab === 'chat' ? 'pb-32 md:pb-0' : 'pb-20 md:pb-0'}`}>
-      <nav className="bg-white shadow">
+    <div className={`min-h-screen bg-gray-50 ${activeTab === 'chat' && isMobile ? 'pb-32' : activeTab === 'chat' ? 'pb-0' : 'pb-20 md:pb-0'}`}>
+      {/* 데스크톱 네비게이션 */}
+      <nav className="hidden md:block bg-white shadow">
         <div className="mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1600px' }}>
           <div className="flex justify-between h-16">
             <div className="flex items-center">
@@ -466,25 +509,29 @@ export default function ProjectDetailPage() {
         </div>
       </nav>
 
-      <main className="mx-auto py-6 sm:px-6 lg:px-8" style={{ maxWidth: '1600px' }}>
-        <div className="px-4 py-6 sm:px-0">
-          {/* 헤더 */}
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {project?.repo_name || '프로젝트'}
-              </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                {project?.repo_owner || ''}
-              </p>
+      {/* 모바일 헤더 */}
+      <nav className="md:hidden bg-white shadow-sm border-b border-gray-200">
+        <div className="px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-base font-semibold text-gray-900 truncate">
+                {project?.project_name || project?.repo_name || '프로젝트'} | {tabs.find(t => t.id === activeTab)?.icon} {getMobileTabTitle(activeTab)}
+              </h1>
             </div>
-            <button
-              onClick={handleRescan}
-              data-rescan-button
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors text-sm font-medium min-h-[44px] touch-manipulation"
-            >
-              🔄 재스캔
-            </button>
+          </div>
+        </div>
+      </nav>
+
+      <main className="mx-auto py-6 sm:px-6 lg:px-8" style={{ maxWidth: '1600px' }}>
+        <div className="px-2 md:px-4 py-2 md:py-6 sm:px-0">
+          {/* 데스크톱 헤더 */}
+          <div className="hidden md:block mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">
+              {project?.repo_name || '프로젝트'}
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {project?.repo_owner || ''}
+            </p>
           </div>
 
           {/* 탭 네비게이션 - 데스크톱 */}
@@ -509,9 +556,18 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {/* 탭 네비게이션 - 모바일 (하단 고정) */}
-          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 safe-bottom">
+          {/* 탭 네비게이션 - 모바일 (하단 고정, 데스크톱에서는 숨김) */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 safe-bottom">
             <div className="flex justify-around items-center h-16">
+              {/* 홈 버튼 */}
+              <Link
+                href="/dashboard"
+                className="flex flex-col items-center justify-center flex-1 h-full transition-colors duration-200 min-h-[44px] touch-manipulation text-gray-600 active:bg-gray-100"
+                aria-label="대시보드로 돌아가기"
+              >
+                <span className="text-2xl">🏠</span>
+              </Link>
+              {/* 탭 버튼들 (아이콘만) */}
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -526,71 +582,73 @@ export default function ProjectDetailPage() {
                   `}
                   aria-label={tab.label}
                 >
-                  <span className="text-xl mb-0.5">{tab.icon}</span>
-                  <span className="text-xs font-medium">{tab.label}</span>
+                  <span className="text-2xl">{tab.icon}</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* 탭 컨텐츠 */}
-          <div className={`bg-white rounded-b-lg shadow ${activeTab !== 'chat' ? 'md:hidden pb-20' : ''}`}>
+          <div className={`bg-white rounded-b-lg shadow ${activeTab !== 'chat' ? 'md:pb-0 pb-20' : ''}`}>
             {/* 개요 탭 */}
             {activeTab === 'overview' && (
-              <div className="p-6">
-                <div className="mb-6 flex justify-between items-center">
-                  <h2 className="text-2xl font-bold text-gray-900">프로젝트 개요</h2>
+              <div className="p-0 md:p-6 flex flex-col min-h-full">
+                <div className="mb-3 md:mb-6 flex justify-between items-center px-3 md:px-0">
+                  <h2 className="hidden md:block text-xl md:text-2xl font-bold text-gray-900">프로젝트 개요</h2>
                   {!isEditing ? (
                     <button
                       onClick={() => setIsEditing(true)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                      className="ml-auto md:ml-0 px-2 py-1.5 md:px-4 md:py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors text-xs md:text-sm font-medium min-h-[36px] md:min-h-[44px] touch-manipulation"
                     >
-                      ✏️ 편집
+                      <span className="text-sm md:text-base">✏️</span>
+                      <span className="ml-1 hidden md:inline">편집</span>
                     </button>
                   ) : (
-                    <div className="flex gap-2">
+                    <div className="hidden md:flex gap-2">
                       <button
                         onClick={() => {
                           setIsEditing(false);
                           // 편집 취소 시 원래 데이터로 복원
                           fetchProjectDetails();
                         }}
-                        className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium"
+                        className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm font-medium min-h-[44px] touch-manipulation"
                       >
                         취소
                       </button>
                       <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] touch-manipulation"
                       >
-                        {saving ? '저장 중...' : '💾 저장'}
+                        <span className="text-base">💾</span>
+                        <span className="ml-1">{saving ? '저장 중...' : '저장'}</span>
                       </button>
                     </div>
                   )}
                 </div>
 
                 {isEditing ? (
-                  <div className="space-y-6">
+                  <div className="space-y-4 md:space-y-6 flex-1">
                     {/* GitHub 정보 불러오기 버튼 */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="text-sm font-medium text-blue-900">GitHub에서 기본 정보 불러오기</p>
-                          <p className="text-xs text-blue-700 mt-1">저장소 이름, 설명, URL 등을 자동으로 채웁니다.</p>
+                    <div className="bg-white border-x-0 md:border border-gray-200 rounded-none md:rounded-lg p-3 md:p-4">
+                      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 md:gap-0">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900">GitHub에서 기본 정보 불러오기</p>
+                          <p className="text-xs text-gray-600 mt-1 break-words">저장소 이름, 설명, URL 등을 자동으로 채웁니다.</p>
                         </div>
                         <button
                           type="button"
                           onClick={loadGitHubInfo}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                          className="w-full md:w-auto flex-shrink-0 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 active:bg-gray-950 transition-colors text-sm font-medium min-h-[44px] touch-manipulation flex items-center justify-center gap-2 whitespace-nowrap"
                         >
-                          🔄 불러오기
+                          <span>🔄</span>
+                          <span>불러오기</span>
                         </button>
                       </div>
                     </div>
 
                     {/* 프로젝트 이름 */}
-                    <div>
+                    <div className="px-3 md:px-0">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         프로젝트 이름 *
                       </label>
@@ -604,7 +662,7 @@ export default function ProjectDetailPage() {
                     </div>
 
                     {/* 프로젝트 소개 */}
-                    <div>
+                    <div className="px-3 md:px-0">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         프로젝트 소개
                       </label>
@@ -618,7 +676,7 @@ export default function ProjectDetailPage() {
                     </div>
 
                     {/* 기술 스펙 */}
-                    <div>
+                    <div className="px-3 md:px-0">
                       <div className="flex justify-between items-center mb-2">
                         <label className="block text-sm font-medium text-gray-700">
                           기술 스펙
@@ -664,7 +722,7 @@ export default function ProjectDetailPage() {
                     </div>
 
                     {/* 실행 URL */}
-                    <div>
+                    <div className="px-3 md:px-0">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         실행 URL (Deployment URL)
                       </label>
@@ -678,7 +736,7 @@ export default function ProjectDetailPage() {
                     </div>
 
                     {/* 저장소 URL */}
-                    <div>
+                    <div className="px-3 md:px-0">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         저장소 URL
                       </label>
@@ -692,7 +750,7 @@ export default function ProjectDetailPage() {
                     </div>
 
                     {/* 문서 URL */}
-                    <div>
+                    <div className="px-3 md:px-0">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         문서 URL (선택)
                       </label>
@@ -704,11 +762,33 @@ export default function ProjectDetailPage() {
                         placeholder="https://docs.example.com"
                       />
                     </div>
+
+                    {/* 취소/저장 버튼 */}
+                    <div className="px-3 md:px-0 pt-4 pb-4 md:pb-0">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setIsEditing(false);
+                            fetchProjectDetails();
+                          }}
+                          className="flex-1 px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 active:bg-gray-700 transition-colors text-sm font-medium min-h-[44px] touch-manipulation"
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={handleSave}
+                          disabled={saving}
+                          className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-900 active:bg-gray-950 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] touch-manipulation"
+                        >
+                          {saving ? '저장 중...' : '💾 저장'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="space-y-4 md:space-y-6">
                     {/* 프로젝트 기본 정보 */}
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-100">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-none md:rounded-lg p-4 md:p-6 border-x-0 md:border border-blue-100">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">기본 정보</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -754,7 +834,7 @@ export default function ProjectDetailPage() {
 
                     {/* 프로젝트 소개 */}
                     {project?.description && (
-                      <div className="bg-white rounded-lg p-6 border border-gray-200">
+                      <div className="bg-white rounded-none md:rounded-lg p-4 md:p-6 border-x-0 md:border border-gray-200">
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">프로젝트 소개</h3>
                         <div
                           className="prose prose-lg max-w-none text-gray-700"
@@ -764,7 +844,7 @@ export default function ProjectDetailPage() {
                     )}
 
                     {/* 댓글 섹션 */}
-                    <div className="bg-white rounded-lg p-6 border border-gray-200">
+                    <div className="bg-white rounded-none md:rounded-lg p-4 md:p-6 border-x-0 md:border border-gray-200">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">댓글</h3>
                       
                       {/* 댓글 작성 폼 */}
@@ -822,7 +902,7 @@ export default function ProjectDetailPage() {
 
                     {/* 기술 스펙 */}
                     {project?.tech_spec && (
-                      <div className="bg-white rounded-lg p-6 border border-gray-200">
+                      <div className="bg-white rounded-none md:rounded-lg p-4 md:p-6 border-x-0 md:border border-gray-200">
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">기술 스펙</h3>
                         <div
                           className="prose prose-lg max-w-none text-gray-700 font-mono text-sm whitespace-pre-wrap"
@@ -837,24 +917,24 @@ export default function ProjectDetailPage() {
 
             {/* AI 분석 결과 탭 */}
             {activeTab === 'idea' && (
-              <div className="p-6">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">🤖 AI 분석 결과</h2>
-                  <p className="text-sm text-gray-600 mb-4">
+              <div className="p-0 md:p-6">
+                <div className="mb-4 md:mb-6 hidden md:block">
+                  <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">🤖 AI 분석 결과</h2>
+                  <p className="text-xs md:text-sm text-gray-600 mb-4">
                     프로젝트의 아이디어, 기술, 특허 가능성을 AI가 분석한 결과입니다.
                   </p>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-2 md:space-y-4">
                   {/* 프로젝트 개요 - 아코디언 */}
-                  <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-none md:rounded-xl border-x-0 md:border border-gray-200 overflow-hidden">
                     <button
                       onClick={() => setExpandedSections(prev => ({ ...prev, overview: !prev.overview }))}
-                      className="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                      className="w-full px-3 md:px-6 py-4 md:py-5 flex items-center justify-between hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-center">
-                        <span className="text-2xl mr-3">📋</span>
-                        <h3 className="text-xl font-bold text-gray-900">프로젝트 개요</h3>
+                        <span className="text-xl md:text-2xl mr-2 md:mr-3">📋</span>
+                        <h3 className="text-base md:text-xl font-bold text-gray-900">프로젝트 개요</h3>
                       </div>
                       <svg
                         className={`w-5 h-5 text-gray-500 transition-transform ${expandedSections.overview ? 'transform rotate-180' : ''}`}
@@ -866,10 +946,10 @@ export default function ProjectDetailPage() {
                       </svg>
                     </button>
                     {expandedSections.overview && (
-                      <div className="px-6 pb-6 pt-2">
+                      <div className="px-3 md:px-6 pb-4 md:pb-6 pt-2">
                         {analysis?.project_overview && analysis.project_overview.trim().length > 0 ? (
                           <div 
-                            className="prose prose-lg max-w-none bg-white rounded-lg p-6 shadow-sm mt-4"
+                            className="prose prose-sm md:prose-lg max-w-none bg-white rounded-lg p-4 md:p-6 shadow-sm mt-3 md:mt-4 text-sm md:text-base leading-relaxed"
                             dangerouslySetInnerHTML={{ __html: formatMarkdown(analysis.project_overview) }}
                           />
                         ) : analysis === null ? (
@@ -912,14 +992,14 @@ export default function ProjectDetailPage() {
                   </div>
 
                   {/* 버전 히스토리 - 아코디언 */}
-                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 overflow-hidden">
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-none md:rounded-xl border-x-0 md:border border-purple-100 overflow-hidden">
                     <button
                       onClick={() => setExpandedSections(prev => ({ ...prev, versionHistory: !prev.versionHistory }))}
-                      className="w-full px-6 py-5 flex items-center justify-between hover:bg-purple-50 transition-colors"
+                      className="w-full px-3 md:px-6 py-4 md:py-5 flex items-center justify-between hover:bg-purple-50 transition-colors"
                     >
                       <div className="flex items-center">
-                        <span className="text-2xl mr-3">📜</span>
-                        <h3 className="text-xl font-bold text-gray-900">버전 히스토리</h3>
+                        <span className="text-xl md:text-2xl mr-2 md:mr-3">📜</span>
+                        <h3 className="text-base md:text-xl font-bold text-gray-900">버전 히스토리</h3>
                         {commits.length > 0 && (
                           <span className="ml-3 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">
                             {commits.length}개
@@ -1001,14 +1081,14 @@ export default function ProjectDetailPage() {
                     )}
                   </div>
                   {/* 아이디어 리뷰 - 아코디언 */}
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 overflow-hidden">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-none md:rounded-xl border-x-0 md:border border-blue-100 overflow-hidden">
                     <button
                       onClick={() => toggleSection('idea')}
-                      className="w-full px-6 py-5 flex items-center justify-between hover:bg-blue-100/50 transition-colors"
+                      className="w-full px-3 md:px-6 py-4 md:py-5 flex items-center justify-between hover:bg-blue-100/50 transition-colors"
                     >
                       <div className="flex items-center">
-                        <span className="text-2xl mr-3">💡</span>
-                        <h3 className="text-xl font-bold text-gray-900">아이디어 리뷰</h3>
+                        <span className="text-xl md:text-2xl mr-2 md:mr-3">💡</span>
+                        <h3 className="text-base md:text-xl font-bold text-gray-900">아이디어 리뷰</h3>
                       </div>
                       <div className="flex items-center space-x-3">
                         {analysis?.idea_review ? (
@@ -1033,10 +1113,10 @@ export default function ProjectDetailPage() {
                       </div>
                     </button>
                     {expandedSections.idea && (
-                      <div className="px-6 pb-6 pt-2">
+                      <div className="px-3 md:px-6 pb-4 md:pb-6 pt-2">
                         {analysis?.idea_review ? (
                           <div 
-                            className="prose prose-lg max-w-none bg-white rounded-lg p-6 shadow-sm mt-4"
+                            className="prose prose-sm md:prose-lg max-w-none bg-white rounded-lg p-4 md:p-6 shadow-sm mt-3 md:mt-4 text-sm md:text-base leading-relaxed"
                             dangerouslySetInnerHTML={{ __html: formatMarkdown(analysis.idea_review) }}
                           />
                         ) : (
@@ -1055,14 +1135,14 @@ export default function ProjectDetailPage() {
                   </div>
 
                   {/* 기술 리뷰 - 아코디언 */}
-                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 overflow-hidden">
+                  <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-none md:rounded-xl border-x-0 md:border border-purple-100 overflow-hidden">
                     <button
                       onClick={() => toggleSection('tech')}
-                      className="w-full px-6 py-5 flex items-center justify-between hover:bg-purple-100/50 transition-colors"
+                      className="w-full px-3 md:px-6 py-4 md:py-5 flex items-center justify-between hover:bg-purple-100/50 transition-colors"
                     >
                       <div className="flex items-center">
-                        <span className="text-2xl mr-3">⚙️</span>
-                        <h3 className="text-xl font-bold text-gray-900">기술 리뷰</h3>
+                        <span className="text-xl md:text-2xl mr-2 md:mr-3">⚙️</span>
+                        <h3 className="text-base md:text-xl font-bold text-gray-900">기술 리뷰</h3>
                       </div>
                       <div className="flex items-center space-x-3">
                         {analysis?.tech_review ? (
@@ -1087,10 +1167,10 @@ export default function ProjectDetailPage() {
                       </div>
                     </button>
                     {expandedSections.tech && (
-                      <div className="px-6 pb-6 pt-2">
+                      <div className="px-3 md:px-6 pb-4 md:pb-6 pt-2">
                         {analysis?.tech_review ? (
                           <div 
-                            className="prose prose-lg max-w-none bg-white rounded-lg p-6 shadow-sm mt-4"
+                            className="prose prose-sm md:prose-lg max-w-none bg-white rounded-lg p-4 md:p-6 shadow-sm mt-3 md:mt-4 text-sm md:text-base leading-relaxed"
                             dangerouslySetInnerHTML={{ __html: formatMarkdown(analysis.tech_review) }}
                           />
                         ) : (
@@ -1109,14 +1189,14 @@ export default function ProjectDetailPage() {
                   </div>
 
                   {/* 특허 분석 - 아코디언 */}
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100 overflow-hidden">
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-none md:rounded-xl border-x-0 md:border border-green-100 overflow-hidden">
                     <button
                       onClick={() => toggleSection('patent')}
-                      className="w-full px-6 py-5 flex items-center justify-between hover:bg-green-100/50 transition-colors"
+                      className="w-full px-3 md:px-6 py-4 md:py-5 flex items-center justify-between hover:bg-green-100/50 transition-colors"
                     >
                       <div className="flex items-center">
-                        <span className="text-2xl mr-3">🔬</span>
-                        <h3 className="text-xl font-bold text-gray-900">특허 분석</h3>
+                        <span className="text-xl md:text-2xl mr-2 md:mr-3">🔬</span>
+                        <h3 className="text-base md:text-xl font-bold text-gray-900">특허 분석</h3>
                       </div>
                       <div className="flex items-center space-x-3">
                         {analysis?.patent_review ? (
@@ -1141,10 +1221,10 @@ export default function ProjectDetailPage() {
                       </div>
                     </button>
                     {expandedSections.patent && (
-                      <div className="px-6 pb-6 pt-2">
+                      <div className="px-3 md:px-6 pb-4 md:pb-6 pt-2">
                         {analysis?.patent_review ? (
                           <div 
-                            className="prose prose-lg max-w-none bg-white rounded-lg p-6 shadow-sm mt-4"
+                            className="prose prose-sm md:prose-lg max-w-none bg-white rounded-lg p-4 md:p-6 shadow-sm mt-3 md:mt-4 text-sm md:text-base leading-relaxed"
                             dangerouslySetInnerHTML={{ __html: formatMarkdown(analysis.patent_review) }}
                           />
                         ) : (
@@ -1164,18 +1244,18 @@ export default function ProjectDetailPage() {
 
                   {/* 릴리즈 노트 */}
                   {analysis?.latest_release_note && (
-                    <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-xl p-6 border border-yellow-100">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xl font-bold text-gray-900 flex items-center">
-                          <span className="text-2xl mr-3">📝</span>
+                    <div className="bg-gradient-to-r from-yellow-50 to-amber-50 rounded-none md:rounded-xl p-3 md:p-6 border-x-0 md:border border-yellow-100">
+                      <div className="flex items-center justify-between mb-3 md:mb-4">
+                        <h3 className="text-base md:text-xl font-bold text-gray-900 flex items-center">
+                          <span className="text-xl md:text-2xl mr-2 md:mr-3">📝</span>
                           최신 릴리즈 노트
                         </h3>
-                        <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
+                        <span className="px-2 md:px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
                           완료
                         </span>
                       </div>
                       <div 
-                        className="prose prose-lg max-w-none bg-white rounded-lg p-6 shadow-sm"
+                        className="prose prose-sm md:prose-lg max-w-none bg-white rounded-lg p-4 md:p-6 shadow-sm text-sm md:text-base leading-relaxed"
                         dangerouslySetInnerHTML={{ __html: formatMarkdown(analysis.latest_release_note) }}
                       />
                     </div>
@@ -1201,20 +1281,36 @@ export default function ProjectDetailPage() {
 
             {/* 진행 및 파일 목록 탭 */}
             {activeTab === 'progress' && (
-              <div className="p-6">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">📊 진행 상황 및 파일 목록</h2>
-                  <p className="text-sm text-gray-600">
+              <div className="p-0 md:p-6">
+                <div className="mb-4 md:mb-6 hidden md:block">
+                  <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">📊 진행 상황 및 파일 목록</h2>
+                  <p className="text-xs md:text-sm text-gray-600">
                     프로젝트 스캔 진행 상황과 파일 목록을 확인할 수 있습니다.
                   </p>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-2 md:space-y-6">
                   {/* 실시간 진행률 배너 */}
-                  <ProgressBanner projectId={projectId} />
+                  <div className="md:mb-0">
+                    <ProgressBanner projectId={projectId} />
+                  </div>
+
+                  {/* 모바일: 재스캔 버튼 (파일 목록 위) */}
+                  <div className="md:hidden px-3">
+                    <button
+                      onClick={handleRescan}
+                      data-rescan-button
+                      className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 active:bg-gray-950 transition-colors text-sm font-medium min-h-[44px] touch-manipulation flex items-center justify-center gap-2"
+                    >
+                      <span className="text-base">🔄</span>
+                      <span>재스캔</span>
+                    </button>
+                  </div>
 
                   {/* 파일 목록 */}
-                  <FileListPane projectId={projectId} enabled={activeTab === 'progress'} />
+                  <div className="md:mb-0">
+                    <FileListPane projectId={projectId} enabled={activeTab === 'progress'} />
+                  </div>
                 </div>
               </div>
             )}
@@ -1222,14 +1318,14 @@ export default function ProjectDetailPage() {
             {/* 챗봇 탭 */}
             {activeTab === 'chat' && (
               <div className="p-0 w-full flex flex-col" style={{ minHeight: 'calc(100vh - 200px)' }}>
-                <div className="mb-6 px-6 pt-6">
+                <div className="mb-6 px-4 md:px-6 pt-4 md:pt-6 hidden md:block">
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">💬 프로젝트 챗봇</h2>
                   <p className="text-sm text-gray-600">
                     프로젝트에 대해 질문하고 AI의 답변을 받아보세요.
                   </p>
                 </div>
                 <div className="flex-1 w-full overflow-hidden">
-                  <ChatInterface projectId={projectId} isMobile={true} />
+                  <ChatInterface projectId={projectId} isMobile={isMobile} />
                 </div>
               </div>
             )}

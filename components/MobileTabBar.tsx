@@ -25,6 +25,11 @@ export default function MobileTabBar() {
   // 프로젝트 상세 페이지인지 확인
   const isProjectDetail = pathname?.startsWith('/dashboard/projects/');
 
+  // 프로젝트 상세 페이지에서는 MobileTabBar 숨김 (페이지 내부 탭 메뉴 사용)
+  if (isProjectDetail) {
+    return null;
+  }
+
   const handleTabClick = (tab: Tab) => {
     if (tab.id === 'more') {
       setShowMoreMenu(true);
