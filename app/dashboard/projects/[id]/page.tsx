@@ -445,7 +445,7 @@ export default function ProjectDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-16 md:pb-0">
+    <div className={`min-h-screen bg-gray-50 ${activeTab === 'chat' ? 'pb-32 md:pb-0' : 'pb-20 md:pb-0'}`}>
       <nav className="bg-white shadow">
         <div className="mx-auto px-4 sm:px-6 lg:px-8" style={{ maxWidth: '1600px' }}>
           <div className="flex justify-between h-16">
@@ -509,31 +509,32 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {/* 탭 네비게이션 - 모바일 (스크롤 가능) */}
-          <div className="md:hidden bg-white rounded-t-lg shadow-sm border-b border-gray-200 overflow-x-auto">
-            <div className="flex space-x-1 px-4 min-w-max">
+          {/* 탭 네비게이션 - 모바일 (하단 고정) */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 safe-bottom">
+            <div className="flex justify-around items-center h-16">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`
-                    px-4 py-3 text-sm font-medium transition-colors relative whitespace-nowrap
-                    flex-shrink-0 min-h-[44px] touch-manipulation
+                    flex flex-col items-center justify-center flex-1 h-full
+                    transition-colors duration-200 min-h-[44px] touch-manipulation
                     ${activeTab === tab.id
-                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      ? 'text-blue-600'
                       : 'text-gray-600 active:bg-gray-100'
                     }
                   `}
+                  aria-label={tab.label}
                 >
-                  <span className="mr-1">{tab.icon}</span>
-                  {tab.label}
+                  <span className="text-xl mb-0.5">{tab.icon}</span>
+                  <span className="text-xs font-medium">{tab.label}</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* 탭 컨텐츠 */}
-          <div className="bg-white rounded-b-lg shadow">
+          <div className={`bg-white rounded-b-lg shadow ${activeTab !== 'chat' ? 'md:hidden pb-20' : ''}`}>
             {/* 개요 탭 */}
             {activeTab === 'overview' && (
               <div className="p-6">
@@ -1220,15 +1221,15 @@ export default function ProjectDetailPage() {
 
             {/* 챗봇 탭 */}
             {activeTab === 'chat' && (
-              <div className="p-0 w-full">
+              <div className="p-0 w-full flex flex-col" style={{ minHeight: 'calc(100vh - 200px)' }}>
                 <div className="mb-6 px-6 pt-6">
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">💬 프로젝트 챗봇</h2>
                   <p className="text-sm text-gray-600">
                     프로젝트에 대해 질문하고 AI의 답변을 받아보세요.
                   </p>
                 </div>
-                <div className="w-full" style={{ minHeight: '600px' }}>
-                  <ChatInterface projectId={projectId} />
+                <div className="flex-1 w-full overflow-hidden">
+                  <ChatInterface projectId={projectId} isMobile={true} />
                 </div>
               </div>
             )}

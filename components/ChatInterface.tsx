@@ -17,9 +17,10 @@ interface ChatMessage {
 
 interface ChatInterfaceProps {
   projectId?: string;
+  isMobile?: boolean;
 }
 
-export default function ChatInterface({ projectId }: ChatInterfaceProps) {
+export default function ChatInterface({ projectId, isMobile = false }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -184,7 +185,7 @@ export default function ChatInterface({ projectId }: ChatInterfaceProps) {
 
   return (
     <div className="flex flex-col h-full bg-white w-full">
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 w-full">
+      <div className={`flex-1 overflow-y-auto p-6 space-y-4 w-full ${isMobile ? 'pb-24' : ''}`}>
         {messages.length === 0 ? (
           <div className="text-center text-gray-500 mt-8">
             <p>질문을 입력하여 프로젝트에 대해 물어보세요.</p>
@@ -246,7 +247,10 @@ export default function ChatInterface({ projectId }: ChatInterfaceProps) {
         )}
         <div ref={messagesEndRef} />
       </div>
-      <form onSubmit={handleSubmit} className="border-t p-4 md:p-6 w-full bg-white safe-bottom">
+      <form 
+        onSubmit={handleSubmit} 
+        className={`border-t p-4 md:p-6 w-full bg-white ${isMobile ? 'fixed bottom-16 left-0 right-0 z-30 safe-bottom shadow-lg' : 'safe-bottom'}`}
+      >
         <div className="flex space-x-2 w-full">
           <input
             type="text"
