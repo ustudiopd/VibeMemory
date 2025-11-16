@@ -40,10 +40,25 @@ export async function GET(
       );
     }
 
-    // 메시지 조회 (커서 기반 페이지네이션)
+    // 메시지 조회 (Citations 포함, 커서 기반 페이지네이션)
     let query = supabaseAdmin
       .from('chat_messages')
-      .select('id, role, content, model, tokens_input, tokens_output, sources, error, created_at')
+      .select(`
+        id, 
+        role, 
+        content, 
+        model, 
+        tokens_input, 
+        tokens_output, 
+        error, 
+        created_at,
+        chat_message_citations (
+          id,
+          file_path,
+          chunk_id,
+          score
+        )
+      `)
       .eq('session_id', sessionId)
       .order('created_at', { ascending: true })
       .limit(limit);
@@ -62,6 +77,30 @@ export async function GET(
       );
     }
 
+    // 응답 형식 변환: Citations를 sources 배열로 변환
+    const messagesWithSources = (messages || []).map((msg: any) => {
+      // Citations가 있으면 sources로 변환, 없으면 기존 sources jsonb 사용 (하위 호환)
+      const sources = msg.chat_message_citations && msg.chat_message_citations.length > 0
+        ? msg.chat_message_citations.map((citation: any) => ({
+            file_path: citation.file_path,
+            chunk_id: citation.chunk_id,
+            score: citation.score,
+          }))
+        : (msg.sources || []); // 기존 jsonb 데이터 (하위 호환)
+
+      return {
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        model: msg.model,
+        tokens_input: msg.tokens_input,
+        tokens_output: msg.tokens_output,
+        error: msg.error,
+        created_at: msg.created_at,
+        sources,
+      };
+    });
+
     // 다음 커서 계산
     const nextCursor =
       messages && messages.length === limit
@@ -69,7 +108,7 @@ export async function GET(
         : null;
 
     return NextResponse.json({
-      messages: messages || [],
+      messages: messagesWithSources,
       nextCursor,
     });
   } catch (error) {

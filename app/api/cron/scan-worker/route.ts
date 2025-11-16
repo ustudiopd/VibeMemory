@@ -7,10 +7,22 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // Cron Secret 검증 (보안)
+    // Vercel Cron 인증 검증 (보안)
+    // Vercel Cron은 자동으로 x-vercel-cron 헤더를 보냅니다
+    const cronHeader = request.headers.get('x-vercel-cron');
     const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    // Vercel Cron 헤더가 있거나, Authorization 헤더가 올바른 경우 허용
+    const isVercelCron = cronHeader === '1';
+    const isValidAuth = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+    
+    if (!isVercelCron && !isValidAuth) {
+      // CRON_SECRET이 설정되지 않은 경우 개발 환경에서는 경고만
+      if (!process.env.CRON_SECRET) {
+        console.warn('[SCAN-WORKER] CRON_SECRET not set, allowing request (development mode)');
+      } else {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
 
     // PENDING 상태의 ingestion_run 찾기

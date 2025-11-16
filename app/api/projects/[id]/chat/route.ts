@@ -273,15 +273,43 @@ ${context}
               // usage를 가져오지 못해도 계속 진행
             }
 
-            await supabaseAdmin.from('chat_messages').insert({
-              session_id: session.id,
-              role: 'assistant',
-              content: fullContent,
-              model: MODEL,
-              tokens_input: tokensInput,
-              tokens_output: tokensOutput,
-              sources: sources,
-            });
+            // Assistant 메시지 저장
+            const { data: assistantMessage, error: messageError } = await supabaseAdmin
+              .from('chat_messages')
+              .insert({
+                session_id: session.id,
+                role: 'assistant',
+                content: fullContent,
+                model: MODEL,
+                tokens_input: tokensInput,
+                tokens_output: tokensOutput,
+                // sources jsonb 필드는 제거 (Citations 테이블 사용)
+              })
+              .select()
+              .single();
+
+            if (messageError) {
+              console.error('[CHAT] Error saving assistant message:', messageError);
+            }
+
+            // Citations 테이블에 저장
+            if (assistantMessage && sources && sources.length > 0) {
+              const citations = sources.map((source: any) => ({
+                message_id: assistantMessage.id,
+                project_id: projectId,
+                file_path: source.file_path || '',
+                chunk_id: source.chunk_id || null,
+                score: source.score || null,
+              }));
+
+              const { error: citationsError } = await supabaseAdmin
+                .from('chat_message_citations')
+                .insert(citations);
+
+              if (citationsError) {
+                console.error('[CHAT] Error saving citations:', citationsError);
+              }
+            }
 
             // 세션 업데이트 시간 갱신
             await supabaseAdmin

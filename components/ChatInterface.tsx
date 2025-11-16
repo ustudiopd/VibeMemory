@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import ChatMarkdown from './ChatMarkdown';
+import ChunkPreview from './ChunkPreview';
 
 interface ChatMessage {
   id: string;
@@ -10,8 +11,8 @@ interface ChatMessage {
   content: string;
   sources?: Array<{
     file_path: string;
-    score: number;
-    chunk_id: string;
+    score?: number;
+    chunk_id?: string | null;
   }>;
 }
 
@@ -26,7 +27,15 @@ export default function ChatInterface({ projectId, isMobile = false }: ChatInter
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [sources, setSources] = useState<Array<{ file_path: string; score: number; chunk_id: string }>>([]);
+  const [sources, setSources] = useState<Array<{ file_path: string; score?: number; chunk_id?: string | null }>>([]);
+  const [selectedChunk, setSelectedChunk] = useState<{
+    id: string;
+    content: string;
+    file_path: string;
+    chunk_index: number;
+  } | null>(null);
+  const [showChunkPreview, setShowChunkPreview] = useState(false);
+  const [loadingChunk, setLoadingChunk] = useState(false);
 
   const apiEndpoint = projectId
     ? `/api/projects/${projectId}/chat`
@@ -60,6 +69,38 @@ export default function ChatInterface({ projectId, isMobile = false }: ChatInter
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 출처 클릭 핸들러
+  const handleCitationClick = async (chunkId: string | null | undefined, filePath: string) => {
+    if (!projectId || !chunkId) {
+      console.warn('[ChatInterface] chunk_id가 없어 청크를 조회할 수 없습니다.');
+      return;
+    }
+
+    setLoadingChunk(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/chunks/${chunkId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedChunk({
+          id: data.id,
+          content: data.content,
+          file_path: data.file_path,
+          chunk_index: data.chunk_index,
+        });
+        setShowChunkPreview(true);
+      } else {
+        const errorData = await response.json();
+        console.error('[ChatInterface] Error fetching chunk:', errorData);
+        alert('청크를 불러올 수 없습니다: ' + (errorData.error || '알 수 없는 오류'));
+      }
+    } catch (error) {
+      console.error('[ChatInterface] Error fetching chunk:', error);
+      alert('청크를 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setLoadingChunk(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -219,14 +260,23 @@ export default function ChatInterface({ projectId, isMobile = false }: ChatInter
                   <div className="text-xs text-gray-500 mb-1">참고 출처:</div>
                   <div className="flex flex-wrap gap-2">
                     {message.sources.map((source, idx) => (
-                      <a
+                      <button
                         key={idx}
-                        href={`#${source.file_path}`}
-                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
-                        title={`유사도: ${source.score.toFixed(3)}`}
+                        onClick={() => handleCitationClick(source.chunk_id, source.file_path)}
+                        disabled={!source.chunk_id || loadingChunk}
+                        className={`text-xs px-2 py-1 rounded transition-colors ${
+                          source.chunk_id
+                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed'
+                            : 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                        }`}
+                        title={
+                          source.chunk_id
+                            ? `유사도: ${source.score?.toFixed(3) || 'N/A'}\n클릭하여 청크 내용 보기`
+                            : '청크 정보가 없습니다'
+                        }
                       >
                         {source.file_path.split('/').pop()}
-                      </a>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -269,6 +319,17 @@ export default function ChatInterface({ projectId, isMobile = false }: ChatInter
           </button>
         </div>
       </form>
+
+      {/* 청크 미리보기 */}
+      {showChunkPreview && selectedChunk && (
+        <ChunkPreview
+          chunk={selectedChunk}
+          onClose={() => {
+            setShowChunkPreview(false);
+            setSelectedChunk(null);
+          }}
+        />
+      )}
     </div>
   );
 }
