@@ -1,5 +1,19 @@
 # 완료된 작업 내역 (Progress)
 
+## [2025-01-16] - Citations 테이블 전환 및 Cron Worker 인증 수정
+- **Citations 테이블 전환**:
+  - `chat_message_citations` 테이블 생성 및 마이그레이션 완료
+  - jsonb 방식에서 별도 테이블 방식으로 전환
+  - 메시지 저장 시 Citations 테이블에 개별 레코드로 저장
+  - 메시지 조회 시 Citations JOIN하여 조회 (하위 호환성 유지)
+  - 청크 조회 API 추가 (`/api/projects/[id]/chunks/[chunkId]`)
+  - 출처 클릭 시 청크 내용 조회 및 미리보기 기능 구현
+  - `ChunkPreview` 컴포넌트 생성 (SVG 아이콘 사용)
+- **Cron Worker 인증 수정**:
+  - Vercel Cron 인증 방식 수정 (`x-vercel-cron` 헤더 지원)
+  - 401 에러 해결
+  - 개발 환경 호환성 개선
+
 ## [2025-11-15] - 성능 최적화 및 코드 품질 개선
 - **병렬 처리 구현**:
   - `lib/runInitialScan.ts`에 병렬 처리 로직 추가
