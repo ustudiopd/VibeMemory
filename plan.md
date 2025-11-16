@@ -10,7 +10,7 @@
 
   * **App**: Next.js 14+ (App Router) / API Routes
   * **DB/Vector**: Supabase (PostgreSQL + pgvector)
-  * **LLM/Embedding**: OpenAI (생성: `gpt-4.1-mini`, 임베딩: `text-embedding-3-small` 1536차원)
+  * **LLM/Embedding**: OpenAI (생성: `gpt-5-mini`, 임베딩: `text-embedding-3-small` 1536차원)
   * **동기화**: GitHub Webhook(push) + Vercel Cron(야간 보정)
   * **스트리밍**: **SSE (POST)** 방식. 프론트엔드는 `fetchEventSource`로 수신하고, 서버는 `text/event-stream`으로 응답합니다. (GET 방식의 `EventSource` 사용 금지)
   * **운영 패턴**: `job_lock` 및 `CLAIM` RPC를 통한 동시성 제어, `api_quota_tracking`을 통한 쿼터 관리 및 지수 백오프, RLS 우선 보안 (모두 `smpp-govhub`에서 검증된 패턴).

@@ -6,7 +6,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-4.1-mini';
+const MODEL = process.env.CHATGPT_MODEL || 'gpt-5-mini';
 
 async function updateScanProgress(
   runId: string,
@@ -315,7 +315,7 @@ ${context || '(관련 문서를 찾을 수 없습니다)'}
 ---`;
 
   const response = await openai.chat.completions.create({
-    model: MODEL, // 'gpt-4.1-mini'
+    model: MODEL, // 'gpt-5-mini'
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.7,
   });

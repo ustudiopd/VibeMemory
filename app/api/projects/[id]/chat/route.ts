@@ -5,7 +5,7 @@ import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { getSystemUserFromSupabase } from '@/lib/system-user';
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-4.1-mini';
+const MODEL = process.env.CHATGPT_MODEL || 'gpt-5-mini';
 
 /**
  * POST /api/projects/[id]/chat
@@ -34,10 +34,10 @@ export async function POST(
       );
     }
 
-    // 프로젝트 소유 확인
+    // 프로젝트 소유 확인 및 project_type 확인
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
-      .select('id, repo_owner, repo_name')
+      .select('id, repo_owner, repo_name, project_type')
       .eq('owner_id', user.id)
       .eq('id', projectId)
       .single();
@@ -72,52 +72,72 @@ export async function POST(
     // 1. 쿼리 임베딩
     const queryEmbedding = await embedText(message);
 
-    // 2. 프로젝트 범위 RRF 검색
-    // search_project_chunks_rrf가 없으면 기존 hybrid_search_rrf 사용 (폴백)
-    console.log('[CHAT] Calling RAG search...');
+    // 2. 프로젝트 범위 RRF 검색 (project_type에 따라 다른 RPC 함수 사용)
+    console.log('[CHAT] Calling RAG search...', { project_type: project.project_type });
     
     let searchResults: any[] = [];
     let searchError: any = null;
 
-    // 먼저 search_project_chunks_rrf 시도
-    const { data: projectSearchResults, error: projectSearchError } = await supabaseAdmin.rpc(
-      'search_project_chunks_rrf',
-      {
-        p_project_id: projectId,
-        p_query_text: message,
-        p_query_vec: queryEmbedding,
-        p_limit: 8,
-      }
-    );
-
-    if (projectSearchError) {
-      console.warn('[CHAT] search_project_chunks_rrf failed, falling back to hybrid_search_rrf:', projectSearchError);
-      // 폴백: 기존 hybrid_search_rrf 사용
-      const { data: hybridResults, error: hybridError } = await supabaseAdmin.rpc(
-        'hybrid_search_rrf',
+    // project_type에 따라 다른 RPC 함수 호출
+    if (project.project_type === 'idea') {
+      // 아이디어 프로젝트: search_idea_project_chunks_rrf 사용
+      const { data: ideaSearchResults, error: ideaSearchError } = await supabaseAdmin.rpc(
+        'search_idea_project_chunks_rrf',
         {
-          p_query_text: message,
-          p_query_embedding: queryEmbedding,
           p_project_id: projectId,
+          p_query_text: message,
+          p_query_vec: queryEmbedding,
           p_limit: 8,
-          p_memory_bank_weight: 1.2,
         }
       );
 
-      if (hybridError) {
-        console.error('[CHAT] hybrid_search_rrf also failed:', hybridError);
-        searchError = hybridError;
+      if (ideaSearchError) {
+        console.error('[CHAT] search_idea_project_chunks_rrf failed:', ideaSearchError);
+        searchError = ideaSearchError;
       } else {
-        // hybrid_search_rrf 결과를 search_project_chunks_rrf 형식으로 변환
-        searchResults = (hybridResults || []).map((r: any) => ({
-          chunk_id: r.id,
-          file_path: r.file_path,
-          content: r.content,
-          rrf_score: r.rank_score || 0,
-        }));
+        searchResults = ideaSearchResults || [];
       }
     } else {
-      searchResults = projectSearchResults || [];
+      // GitHub 프로젝트: search_project_chunks_rrf 사용
+      const { data: projectSearchResults, error: projectSearchError } = await supabaseAdmin.rpc(
+        'search_project_chunks_rrf',
+        {
+          p_project_id: projectId,
+          p_query_text: message,
+          p_query_vec: queryEmbedding,
+          p_limit: 8,
+        }
+      );
+
+      if (projectSearchError) {
+        console.warn('[CHAT] search_project_chunks_rrf failed, falling back to hybrid_search_rrf:', projectSearchError);
+        // 폴백: 기존 hybrid_search_rrf 사용
+        const { data: hybridResults, error: hybridError } = await supabaseAdmin.rpc(
+          'hybrid_search_rrf',
+          {
+            p_query_text: message,
+            p_query_embedding: queryEmbedding,
+            p_project_id: projectId,
+            p_limit: 8,
+            p_memory_bank_weight: 1.2,
+          }
+        );
+
+        if (hybridError) {
+          console.error('[CHAT] hybrid_search_rrf also failed:', hybridError);
+          searchError = hybridError;
+        } else {
+          // hybrid_search_rrf 결과를 search_project_chunks_rrf 형식으로 변환
+          searchResults = (hybridResults || []).map((r: any) => ({
+            chunk_id: r.id,
+            file_path: r.file_path,
+            content: r.content,
+            rrf_score: r.rank_score || 0,
+          }));
+        }
+      } else {
+        searchResults = projectSearchResults || [];
+      }
     }
 
     console.log('[CHAT] Search results:', {
@@ -141,7 +161,25 @@ export async function POST(
     }));
 
     // 4. 프롬프트 구성 (해결책.md 5장 참조)
-    const systemPrompt = `너는 프로젝트 문서(.md) 기반의 전문적인 기술 문서 분석가다.
+    // project_type에 따라 다른 시스템 프롬프트 사용
+    const systemPrompt = project.project_type === 'idea'
+      ? `당신은 사용자의 아이디어를 구체적인 명세서로 만들어주는 프로덕트 매니저입니다. 역으로 질문하고 기능을 구체화하도록 유도하세요.
+
+**역할:**
+- 사용자의 아이디어를 듣고 구체적인 기능 요구사항으로 발전시킵니다
+- 불명확한 부분에 대해 질문하여 명확히 합니다
+- 기술적 구현보다는 사용자 경험과 기능 요구사항에 집중합니다
+
+**답변 작성 규칙:**
+1. 제공된 컨텍스트(업로드된 파일, 이전 대화)를 기반으로 답변하세요
+2. 답변은 마크다운 형식으로 작성하세요
+3. 자연스러운 한국어 문장으로 작성하세요
+4. 사용자의 아이디어를 발전시키기 위해 질문을 던지세요
+5. 기능을 구체화하고 우선순위를 제안하세요
+
+**컨텍스트:**
+${context || '(아직 업로드된 파일이 없습니다. 사용자와 대화를 통해 아이디어를 발전시켜주세요.)'}`
+      : `너는 프로젝트 문서(.md) 기반의 전문적인 기술 문서 분석가다.
 
 **절대 금지 사항 (매우 중요):**
 - 단어나 문장을 따옴표(")로 감싸는 것 - 절대로 하지 말라

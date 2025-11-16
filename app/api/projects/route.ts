@@ -26,7 +26,20 @@ export async function GET(request: NextRequest) {
       // Fallback to direct table access if RPC fails
       const { data: projectsDirect, error: directError } = await supabaseAdmin
         .from('projects')
-        .select('id, repo_name, repo_owner, repo_url, project_name, description, created_at, updated_at')
+        .select(`
+          id, 
+          repo_name, 
+          repo_owner, 
+          repo_url, 
+          project_name, 
+          project_type,
+          description, 
+          created_at, 
+          updated_at,
+          project_analysis (
+            project_overview
+          )
+        `)
         .eq('owner_id', ownerId)
         .order('created_at', { ascending: false });
 
@@ -38,10 +51,50 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      return NextResponse.json({ projects: projectsDirect || [] });
+      // project_overview를 각 프로젝트에 추가
+      const projectsWithOverview = (projectsDirect || []).map((project: any) => ({
+        ...project,
+        project_overview: project.project_analysis?.[0]?.project_overview || null,
+      }));
+
+      return NextResponse.json({ projects: projectsWithOverview });
     }
 
-    return NextResponse.json({ projects: projects || [] });
+    // RPC 결과에도 project_overview와 description 추가 (RPC가 포함하지 않을 수 있음)
+    // 각 프로젝트별로 project_overview와 description 조회
+    const projectsWithOverview = await Promise.all(
+      (projects || []).map(async (project: any) => {
+        // description이 없으면 조회
+        let description = project.description;
+        if (!description) {
+          const { data: projectData } = await supabaseAdmin
+            .from('projects')
+            .select('description')
+            .eq('id', project.id)
+            .single();
+          description = projectData?.description || null;
+        }
+        
+        // project_overview 조회
+        let projectOverview = project.project_overview;
+        if (!projectOverview) {
+          const { data: analysis } = await supabaseAdmin
+            .from('project_analysis')
+            .select('project_overview')
+            .eq('project_id', project.id)
+            .single();
+          projectOverview = analysis?.project_overview || null;
+        }
+        
+        return {
+          ...project,
+          description: description,
+          project_overview: projectOverview,
+        };
+      })
+    );
+
+    return NextResponse.json({ projects: projectsWithOverview });
   } catch (error) {
     console.error('Error in GET /api/projects:', error);
     return NextResponse.json(

@@ -1,8 +1,6 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
-import MobileMoreMenu from './MobileMoreMenu';
 
 interface Tab {
   id: string;
@@ -14,13 +12,12 @@ interface Tab {
 const tabs: Tab[] = [
   { id: 'dashboard', label: '대시보드', icon: '🏠', path: '/dashboard' },
   { id: 'import', label: '가져오기', icon: '➕', path: '/dashboard/import' },
-  { id: 'more', label: '더보기', icon: '⋯', path: null },
+  { id: 'create', label: '만들기', icon: '✨', path: '/dashboard/create' },
 ];
 
 export default function MobileTabBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   // 프로젝트 상세 페이지인지 확인
   const isProjectDetail = pathname?.startsWith('/dashboard/projects/');
@@ -31,20 +28,24 @@ export default function MobileTabBar() {
   }
 
   const handleTabClick = (tab: Tab) => {
-    if (tab.id === 'more') {
-      setShowMoreMenu(true);
-    } else if (tab.path) {
+    if (tab.path) {
       router.push(tab.path);
     }
   };
 
   const isActive = (tab: Tab) => {
-    if (tab.id === 'more') return false;
+    // 메인 페이지(/)에서는 모든 탭 비활성화
+    if (pathname === '/') {
+      return false;
+    }
     if (tab.path === '/dashboard') {
       return pathname === '/dashboard' && !isProjectDetail;
     }
     if (tab.path === '/dashboard/import') {
       return pathname === '/dashboard/import';
+    }
+    if (tab.path === '/dashboard/create') {
+      return pathname === '/dashboard/create';
     }
     return pathname === tab.path;
   };
@@ -78,13 +79,6 @@ export default function MobileTabBar() {
       
       {/* 하단 탭바를 위한 여백 */}
       <div className="md:hidden h-16 safe-bottom" />
-      
-      {/* 더보기 메뉴 */}
-      <MobileMoreMenu
-        isOpen={showMoreMenu}
-        onClose={() => setShowMoreMenu(false)}
-        projectId={isProjectDetail ? pathname?.split('/')[3] : undefined}
-      />
     </>
   );
 }

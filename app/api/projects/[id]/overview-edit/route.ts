@@ -22,7 +22,7 @@ export async function GET(
 
     const { data: project, error } = await supabaseAdmin
       .from('projects')
-      .select('id, project_name, description, tech_spec, deployment_url, repository_url, documentation_url, repo_name, repo_owner, repo_url')
+      .select('id, project_name, project_type, description, tech_spec, deployment_url, repository_url, documentation_url, repo_name, repo_owner, repo_url')
       .eq('id', projectId)
       .eq('owner_id', user.id)
       .single();

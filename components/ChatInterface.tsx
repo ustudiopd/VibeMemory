@@ -19,14 +19,21 @@ interface ChatMessage {
 interface ChatInterfaceProps {
   projectId?: string;
   isMobile?: boolean;
+  initialSessionId?: string | null;
+  onSessionChange?: (sessionId: string | null) => void;
 }
 
-export default function ChatInterface({ projectId, isMobile = false }: ChatInterfaceProps) {
+export default function ChatInterface({ 
+  projectId, 
+  isMobile = false,
+  initialSessionId = null,
+  onSessionChange,
+}: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(initialSessionId);
   const [sources, setSources] = useState<Array<{ file_path: string; score?: number; chunk_id?: string | null }>>([]);
   const [selectedChunk, setSelectedChunk] = useState<{
     id: string;
@@ -36,6 +43,7 @@ export default function ChatInterface({ projectId, isMobile = false }: ChatInter
   } | null>(null);
   const [showChunkPreview, setShowChunkPreview] = useState(false);
   const [loadingChunk, setLoadingChunk] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   const apiEndpoint = projectId
     ? `/api/projects/${projectId}/chat`
@@ -69,6 +77,57 @@ export default function ChatInterface({ projectId, isMobile = false }: ChatInter
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 세션 변경 시 메시지 로드
+  useEffect(() => {
+    if (initialSessionId && initialSessionId !== currentSessionId) {
+      setCurrentSessionId(initialSessionId);
+      loadSession(initialSessionId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSessionId]);
+
+  // 세션 로드 함수
+  const loadSession = async (sessionId: string) => {
+    if (!projectId || !sessionId) return;
+
+    setLoadingMessages(true);
+    setMessages([]);
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/chat/sessions/${sessionId}/messages?limit=50`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        const loadedMessages: ChatMessage[] = (data.messages || []).map((msg: any) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          sources: msg.sources || [],
+        }));
+        setMessages(loadedMessages);
+        setCurrentSessionId(sessionId);
+        if (onSessionChange) {
+          onSessionChange(sessionId);
+        }
+      } else {
+        console.error('[ChatInterface] Error loading session:', await response.json());
+      }
+    } catch (error) {
+      console.error('[ChatInterface] Error loading session:', error);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  // 새 세션 시작
+  const startNewSession = () => {
+    setMessages([]);
+    setCurrentSessionId(null);
+    if (onSessionChange) {
+      onSessionChange(null);
+    }
+  };
 
   // 출처 클릭 핸들러
   const handleCitationClick = async (chunkId: string | null | undefined, filePath: string) => {
@@ -124,6 +183,9 @@ export default function ChatInterface({ projectId, isMobile = false }: ChatInter
       sessionId = await createSession();
       if (sessionId) {
         setCurrentSessionId(sessionId);
+        if (onSessionChange) {
+          onSessionChange(sessionId);
+        }
       }
     }
 
@@ -181,6 +243,10 @@ export default function ChatInterface({ projectId, isMobile = false }: ChatInter
             }
           } else if (ev.event === 'done') {
             setIsLoading(false);
+            // 세션 ID가 변경되었을 수 있으므로 부모에 알림
+            if (sessionId && onSessionChange) {
+              onSessionChange(sessionId);
+            }
           } else if (ev.event === 'error') {
             try {
               const errorData = JSON.parse(ev.data);
@@ -225,9 +291,14 @@ export default function ChatInterface({ projectId, isMobile = false }: ChatInter
   };
 
   return (
-    <div className="flex flex-col h-full bg-white w-full">
-      <div className={`flex-1 overflow-y-auto p-6 space-y-4 w-full ${isMobile ? 'pb-24' : ''}`}>
-        {messages.length === 0 ? (
+    <div className="flex flex-col h-full bg-white w-full relative min-h-0">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 w-full min-h-0" style={{ paddingBottom: isMobile ? '100px' : '100px' }}>
+        {loadingMessages ? (
+          <div className="text-center text-gray-500 pt-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+            <p>대화를 불러오는 중...</p>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="text-left text-gray-500 pt-0">
             <p>질문을 입력하여 프로젝트에 대해 물어보세요.</p>
           </div>
@@ -299,7 +370,7 @@ export default function ChatInterface({ projectId, isMobile = false }: ChatInter
       </div>
       <form 
         onSubmit={handleSubmit} 
-        className={`border-t p-4 md:p-6 w-full bg-white ${isMobile ? 'fixed bottom-16 left-0 right-0 z-30 safe-bottom shadow-lg' : 'safe-bottom'}`}
+        className={`border-t p-4 md:p-6 w-full bg-white flex-shrink-0 ${isMobile ? 'fixed bottom-16 left-0 right-0 z-30 safe-bottom shadow-lg' : 'sticky bottom-0 z-10'}`}
       >
         <div className="flex space-x-2 w-full">
           <input

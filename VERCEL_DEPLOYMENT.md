@@ -55,7 +55,7 @@ openssl rand -base64 32
 #### OpenAI 설정
 ```env
 OPENAI_API_KEY=sk-your-openai-api-key
-CHATGPT_MODEL=gpt-4.1-mini
+CHATGPT_MODEL=gpt-5-mini
 ```
 
 #### 앱 URL (웹훅 URL 자동 생성용) ⚠️ 필수

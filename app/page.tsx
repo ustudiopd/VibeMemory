@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import MobileTabBar from '@/components/MobileTabBar';
 
 export default function Home() {
   return (
@@ -46,6 +47,25 @@ export default function Home() {
               대시보드로 이동
             </Link>
             <Link
+              href="/dashboard/create"
+              className="inline-flex items-center justify-center px-8 py-4 text-base font-semibold rounded-lg text-slate-700 bg-white border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-50 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 min-w-[200px]"
+            >
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              프로젝트 만들기
+            </Link>
+            <Link
               href="/dashboard/import"
               className="inline-flex items-center justify-center px-8 py-4 text-base font-semibold rounded-lg text-slate-700 bg-white border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-50 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 min-w-[200px]"
             >
@@ -67,6 +87,7 @@ export default function Home() {
           </div>
         </div>
       </main>
+      <MobileTabBar />
     </div>
   );
 }

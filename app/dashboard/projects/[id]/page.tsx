@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import ChatInterface from '@/components/ChatInterface';
+import SessionSidebar from '@/components/SessionSidebar';
 import ProgressBanner from '@/components/ProgressBanner';
 import FileListPane from '@/components/FileListPane';
+import ScreenshotGallery from '@/components/ScreenshotGallery';
+import IdeaNoteTab from '@/components/IdeaNoteTab';
 
 interface Progress {
   P0: { webhook_configured: boolean };
@@ -56,12 +59,14 @@ export default function ProjectDetailPage() {
     patent: boolean;
     overview: boolean;
     versionHistory: boolean;
+    techSpec: boolean;
   }>({
     idea: true,
     tech: false,
     patent: false,
     overview: true,
     versionHistory: false,
+    techSpec: false, // 기술 스펙은 기본적으로 접힘
   });
   const [commits, setCommits] = useState<any[]>([]);
   const [loadingCommits, setLoadingCommits] = useState(false);
@@ -70,6 +75,9 @@ export default function ProjectDetailPage() {
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // 사이드바 기본 닫힘
+  const [generatingTechSpec, setGeneratingTechSpec] = useState(false); // 기술 스펙 생성 중
 
   useEffect(() => {
     // 모바일 여부 감지
@@ -84,14 +92,35 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (projectId) {
-      fetchProject();
-      fetchProjectDetails();
-      // fetchProgress() 제거 - ProgressBanner가 SSE로 처리
-      fetchAnalysis();
-      fetchCommits();
-      fetchComments();
+      loadProjectData();
     }
   }, [projectId]);
+
+  // 프로젝트 데이터 로드 (순차적으로 실행)
+  const loadProjectData = async () => {
+    setLoading(true);
+    try {
+      // 1. 기본 프로젝트 정보 로드
+      await fetchProject();
+      // 2. 상세 정보 로드 (기본 정보가 로드된 후)
+      await fetchProjectDetails();
+      // 3. 나머지 데이터는 병렬로 로드
+      // project 상태는 비동기적으로 업데이트되므로, 
+      // 약간의 지연 후 확인하거나 fetchProject에서 반환된 정보를 사용
+      // 여기서는 간단하게 모든 데이터를 로드하고, 각 함수 내에서 project_type을 확인하도록 함
+      Promise.all([
+        fetchAnalysis(),
+        fetchCommits(),
+        fetchComments(),
+      ]).catch((error) => {
+        console.error('[PROJECT DETAIL] Error loading additional data:', error);
+      });
+    } catch (error) {
+      console.error('[PROJECT DETAIL] Error loading project data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchCommits = async () => {
     setLoadingCommits(true);
@@ -183,13 +212,12 @@ export default function ProjectDetailPage() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('[PROJECT DETAIL] Failed to fetch projects:', response.status, errorData);
-        alert(`프로젝트 목록을 불러오는데 실패했습니다: ${errorData.error || response.statusText}`);
-        return;
+        throw new Error(`프로젝트 목록을 불러오는데 실패했습니다: ${errorData.error || response.statusText}`);
       }
       const data = await response.json();
       const foundProject = data.projects?.find((p: any) => p.id === projectId);
       if (foundProject) {
-        console.log('[PROJECT DETAIL] Project found:', foundProject.repo_name);
+        console.log('[PROJECT DETAIL] Project found:', foundProject.project_name || foundProject.repo_name);
         setProject(foundProject);
         // 편집 데이터 초기화
         setEditData({
@@ -202,13 +230,11 @@ export default function ProjectDetailPage() {
         });
       } else {
         console.warn('[PROJECT DETAIL] Project not found in list:', projectId);
-        alert('프로젝트를 찾을 수 없습니다.');
+        throw new Error('프로젝트를 찾을 수 없습니다.');
       }
     } catch (error) {
       console.error('[PROJECT DETAIL] Error fetching project:', error);
-      alert(`프로젝트를 불러오는 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-    } finally {
-      setLoading(false);
+      throw error; // 상위 함수에서 처리하도록 에러 전파
     }
   };
 
@@ -217,27 +243,76 @@ export default function ProjectDetailPage() {
       console.log('[PROJECT DETAIL] Fetching project details:', projectId);
       const response = await fetch(`/api/projects/${projectId}/overview-edit`);
       if (!response.ok) {
+        // 404는 정상일 수 있음 (프로젝트가 없거나 권한이 없는 경우)
+        // 에러는 로그만 남기고 계속 진행
+        if (response.status === 404) {
+          console.warn('[PROJECT DETAIL] Project details not found (404):', projectId);
+          return;
+        }
         const errorData = await response.json().catch(() => ({}));
         console.error('[PROJECT DETAIL] Failed to fetch project details:', response.status, errorData);
-        // 상세 정보가 없을 수 있으므로 에러는 로그만 남김
         return;
       }
       const data = await response.json();
       if (data.project) {
         console.log('[PROJECT DETAIL] Project details loaded');
-        setProject((prev: any) => ({ ...prev, ...data.project }));
-        setEditData({
-          project_name: data.project.project_name || data.project.repo_name || '',
-          description: data.project.description || '',
-          tech_spec: data.project.tech_spec || '',
-          deployment_url: data.project.deployment_url || '',
-          repository_url: data.project.repository_url || data.project.repo_url || '',
-          documentation_url: data.project.documentation_url || '',
+        // 이전 프로젝트 데이터와 병합 (null 체크)
+        setProject((prev: any) => {
+          if (!prev) {
+            // 이전 데이터가 없으면 새로 설정
+            return data.project;
+          }
+          // 이전 데이터가 있으면 병합
+          return { ...prev, ...data.project };
         });
+        setEditData((prev) => ({
+          ...prev,
+          project_name: data.project.project_name || data.project.repo_name || prev.project_name || '',
+          description: data.project.description || prev.description || '',
+          tech_spec: data.project.tech_spec || prev.tech_spec || '',
+          deployment_url: data.project.deployment_url || prev.deployment_url || '',
+          repository_url: data.project.repository_url || data.project.repo_url || prev.repository_url || '',
+          documentation_url: data.project.documentation_url || prev.documentation_url || '',
+        }));
       }
     } catch (error) {
       console.error('[PROJECT DETAIL] Error fetching project details:', error);
       // 상세 정보가 없을 수 있으므로 에러는 로그만 남김
+    }
+  };
+
+  // 기술 스펙 자동 생성 함수
+  const handleGenerateTechSpec = async () => {
+    if (!analysis?.tech_review) {
+      alert('기술 리뷰가 아직 생성되지 않았습니다.');
+      return;
+    }
+
+    setGeneratingTechSpec(true);
+    try {
+      const response = await fetch(`/api/projects/${projectId}/tech-spec/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '기술 스펙 생성에 실패했습니다.');
+      }
+
+      if (data.success && data.tech_spec) {
+        setEditData({ ...editData, tech_spec: data.tech_spec });
+      } else {
+        throw new Error('기술 스펙 생성 결과가 올바르지 않습니다.');
+      }
+    } catch (error) {
+      console.error('Error generating tech spec:', error);
+      alert(error instanceof Error ? error.message : '기술 스펙 생성에 실패했습니다.');
+    } finally {
+      setGeneratingTechSpec(false);
     }
   };
 
@@ -450,10 +525,19 @@ export default function ProjectDetailPage() {
   }
 
   const tabs = [
-    { id: 'overview' as TabType, label: '개요', icon: '📋' },
-    { id: 'idea' as TabType, label: 'AI 분석 결과', icon: '🤖' },
-    { id: 'progress' as TabType, label: '진행 및 파일 목록', icon: '📊' },
-    { id: 'chat' as TabType, label: '챗봇', icon: '💬' },
+    // project_type에 따라 탭 목록 동적 생성
+    ...(project?.project_type === 'idea'
+      ? [
+          { id: 'overview' as TabType, label: '개요', icon: '📋' },
+          { id: 'idea' as TabType, label: '아이디어 노트', icon: '💡' },
+          { id: 'chat' as TabType, label: '챗봇', icon: '💬' },
+        ]
+      : [
+          { id: 'overview' as TabType, label: '개요', icon: '📋' },
+          { id: 'idea' as TabType, label: 'AI 분석 결과', icon: '🤖' },
+          { id: 'progress' as TabType, label: '진행 및 파일 목록', icon: '📊' },
+          { id: 'chat' as TabType, label: '챗봇', icon: '💬' },
+        ]),
   ];
 
   // 모바일 탭 제목 매핑
@@ -518,6 +602,29 @@ export default function ProjectDetailPage() {
                 {project?.project_name || project?.repo_name || '프로젝트'} | {tabs.find(t => t.id === activeTab)?.icon} {getMobileTabTitle(activeTab)}
               </h1>
             </div>
+            {/* 모바일 챗봇 탭에서만 목록 버튼 표시 */}
+            {activeTab === 'chat' && (
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="ml-2 px-0 py-0 bg-transparent hover:opacity-70 transition-opacity flex items-center gap-1 flex-shrink-0"
+                title={sidebarOpen ? '대화 목록 닫기' : '대화 목록 열기'}
+              >
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                </svg>
+                <span className="text-sm font-medium">목록</span>
+              </button>
+            )}
           </div>
         </div>
       </nav>
@@ -684,28 +791,18 @@ export default function ProjectDetailPage() {
                         {analysis?.tech_review && (
                           <button
                             type="button"
-                            onClick={() => {
-                              // 기술 리뷰에서 기술 스택 추출 시도
-                              const techReview = analysis.tech_review;
-                              // 기술 리뷰에서 기술 스택 정보 추출 (간단한 추출 로직)
-                              if (!techReview) {
-                                alert('기술 리뷰가 아직 생성되지 않았습니다.');
-                                return;
-                              }
-                              const techStackMatch = techReview.match(/기술\s*스택[:\s]*([^\n]+)/i) ||
-                                techReview.match(/(Next\.js|React|TypeScript|Supabase|Tailwind|Node\.js|PostgreSQL)[^\n]*/gi);
-                              if (techStackMatch) {
-                                const extracted = techStackMatch.join('\n');
-                                setEditData({ ...editData, tech_spec: extracted });
-                              } else {
-                                // 기술 리뷰의 첫 부분을 기술 스펙으로 사용
-                                const firstParagraph = techReview.split('\n\n')[0];
-                                setEditData({ ...editData, tech_spec: firstParagraph.substring(0, 500) });
-                              }
-                            }}
-                            className="text-xs text-blue-600 hover:text-blue-800 underline"
+                            onClick={handleGenerateTechSpec}
+                            disabled={generatingTechSpec}
+                            className="text-xs text-blue-600 hover:text-blue-800 underline disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                           >
-                            🔍 기술 리뷰에서 불러오기
+                            {generatingTechSpec ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                                생성 중...
+                              </>
+                            ) : (
+                              '🔍 기술 리뷰에서 불러오기'
+                            )}
                           </button>
                         )}
                       </div>
@@ -900,30 +997,59 @@ export default function ProjectDetailPage() {
                       )}
                     </div>
 
-                    {/* 기술 스펙 */}
+                    {/* 기술 스펙 - 아코디언 */}
                     {project?.tech_spec && (
-                      <div className="bg-white rounded-none md:rounded-lg p-4 md:p-6 border-x-0 md:border border-gray-200">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">기술 스펙</h3>
-                        <div
-                          className="prose prose-lg max-w-none text-gray-700 font-mono text-sm whitespace-pre-wrap"
-                          dangerouslySetInnerHTML={{ __html: formatMarkdown(project.tech_spec) }}
-                        />
+                      <div className="bg-white rounded-none md:rounded-lg border-x-0 md:border border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedSections(prev => ({ ...prev, techSpec: !prev.techSpec }))}
+                          className="w-full px-4 md:px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                        >
+                          <h3 className="text-base md:text-xl font-bold text-gray-900">기술 스펙</h3>
+                          <svg
+                            className={`w-5 h-5 text-gray-500 transition-transform ${expandedSections.techSpec ? 'transform rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        {expandedSections.techSpec && (
+                          <div className="px-4 md:px-6 pb-4 md:pb-6 border-t border-gray-200">
+                            <div
+                              className="prose prose-lg max-w-none text-gray-700 font-mono text-sm whitespace-pre-wrap mt-4"
+                              dangerouslySetInnerHTML={{ __html: formatMarkdown(project.tech_spec) }}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
+
+                    {/* 스크린샷 갤러리 */}
+                    <div className="bg-white rounded-none md:rounded-lg p-4 md:p-6 border-x-0 md:border border-gray-200">
+                      <ScreenshotGallery projectId={projectId} />
+                    </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* AI 분석 결과 탭 */}
+            {/* AI 분석 결과 탭 또는 아이디어 노트 탭 */}
             {activeTab === 'idea' && (
               <div className="p-0 md:p-6">
-                <div className="mb-4 md:mb-6 hidden md:block">
-                  <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">🤖 AI 분석 결과</h2>
-                  <p className="text-xs md:text-sm text-gray-600 mb-4">
-                    프로젝트의 아이디어, 기술, 특허 가능성을 AI가 분석한 결과입니다.
-                  </p>
-                </div>
+                {project?.project_type === 'idea' ? (
+                  // 아이디어 프로젝트: 아이디어 노트 탭
+                  <IdeaNoteTab projectId={projectId} />
+                ) : (
+                  // GitHub 프로젝트: AI 분석 결과 탭
+                  <>
+                    <div className="mb-4 md:mb-6 hidden md:block">
+                      <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">🤖 AI 분석 결과</h2>
+                      <p className="text-xs md:text-sm text-gray-600 mb-4">
+                        프로젝트의 아이디어, 기술, 특허 가능성을 AI가 분석한 결과입니다.
+                      </p>
+                    </div>
 
                 <div className="space-y-2 md:space-y-4">
                   {/* 프로젝트 개요 - 아코디언 */}
@@ -1276,11 +1402,13 @@ export default function ProjectDetailPage() {
                     </div>
                   )}
                 </div>
+                  </>
+                )}
               </div>
             )}
 
             {/* 진행 및 파일 목록 탭 */}
-            {activeTab === 'progress' && (
+            {activeTab === 'progress' && project?.project_type !== 'idea' && (
               <div className="p-0 md:p-6">
                 <div className="mb-4 md:mb-6 hidden md:block">
                   <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">📊 진행 상황 및 파일 목록</h2>
@@ -1317,15 +1445,87 @@ export default function ProjectDetailPage() {
 
             {/* 챗봇 탭 */}
             {activeTab === 'chat' && (
-              <div className="p-0 w-full flex flex-col" style={{ minHeight: 'calc(100vh - 200px)' }}>
-                <div className="mb-6 px-4 md:px-6 pt-4 md:pt-6 hidden md:block">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">💬 프로젝트 챗봇</h2>
-                  <p className="text-sm text-gray-600">
-                    프로젝트에 대해 질문하고 AI의 답변을 받아보세요.
-                  </p>
+              <div className="p-0 w-full flex flex-col" style={{ height: 'calc(100vh - 180px)', minHeight: '600px', maxHeight: 'calc(100vh - 180px)' }}>
+                {/* 데스크톱 헤더 */}
+                <div className="mb-4 md:mb-6 px-4 md:px-6 pt-4 md:pt-6 hidden md:block flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-2">💬 프로젝트 챗봇</h2>
+                      <p className="text-sm text-gray-600">
+                        프로젝트에 대해 질문하고 AI의 답변을 받아보세요.
+                      </p>
+                    </div>
+                    {/* 사이드바 토글 버튼 */}
+                    <button
+                      onClick={() => setSidebarOpen(!sidebarOpen)}
+                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-2"
+                      title={sidebarOpen ? '대화 목록 닫기' : '대화 목록 열기'}
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 6h16M4 12h16M4 18h16"
+                        />
+                      </svg>
+                      <span className="text-sm">대화 목록</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="flex-1 w-full overflow-hidden">
-                  <ChatInterface projectId={projectId} isMobile={isMobile} />
+
+                {/* 모바일: 사이드바 (헤더 바로 아래) */}
+                {isMobile && sidebarOpen && (
+                  <div className="md:hidden border-b border-gray-200 bg-white flex-shrink-0" style={{ maxHeight: '50vh', overflow: 'hidden' }}>
+                    <div className="h-full" style={{ maxHeight: '50vh' }}>
+                      <SessionSidebar
+                        projectId={projectId}
+                        currentSessionId={selectedSessionId}
+                        onSessionSelect={(sessionId) => {
+                          setSelectedSessionId(sessionId);
+                          setSidebarOpen(false); // 모바일에서 세션 선택 시 사이드바 닫기
+                        }}
+                        onNewSession={() => {
+                          setSelectedSessionId(null);
+                          setSidebarOpen(false); // 모바일에서 새 세션 시작 시 사이드바 닫기
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex-1 w-full overflow-hidden flex min-h-0">
+                  {/* 데스크톱: 세션 사이드바 (토글 가능) */}
+                  {!isMobile && sidebarOpen && (
+                    <div className="flex-shrink-0 h-full">
+                      <SessionSidebar
+                        projectId={projectId}
+                        currentSessionId={selectedSessionId}
+                        onSessionSelect={(sessionId) => {
+                          setSelectedSessionId(sessionId);
+                        }}
+                        onNewSession={() => {
+                          setSelectedSessionId(null);
+                        }}
+                      />
+                    </div>
+                  )}
+                  {/* 챗 인터페이스 */}
+                  <div className="flex-1 overflow-hidden min-h-0">
+                    <ChatInterface
+                      projectId={projectId}
+                      isMobile={isMobile}
+                      initialSessionId={selectedSessionId}
+                      onSessionChange={(sessionId) => {
+                        setSelectedSessionId(sessionId);
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             )}

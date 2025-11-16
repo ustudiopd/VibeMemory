@@ -53,13 +53,13 @@ NEXTAUTH_URL=http://localhost:3000
 
 ```env
 OPENAI_API_KEY=sk-your-openai-api-key
-CHATGPT_MODEL=gpt-4.1-mini
+CHATGPT_MODEL=gpt-5-mini
 ```
 
 **설정 방법:**
 1. [OpenAI Platform](https://platform.openai.com/api-keys) 접속
 2. API 키 생성
-3. `CHATGPT_MODEL`은 기본값 `gpt-4.1-mini` 사용 (변경 가능)
+3. `CHATGPT_MODEL`은 기본값 `gpt-5-mini` 사용 (변경 가능)
 
 ### 5. 앱 URL (선택사항)
 
@@ -107,7 +107,7 @@ NEXTAUTH_URL=http://localhost:3000
 
 # OpenAI
 OPENAI_API_KEY=sk-your-openai-api-key
-CHATGPT_MODEL=gpt-4.1-mini
+CHATGPT_MODEL=gpt-5-mini
 
 # App URL
 NEXT_PUBLIC_APP_URL=http://localhost:3000

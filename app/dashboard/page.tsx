@@ -97,7 +97,7 @@ export default function DashboardPage() {
             <div className="flex items-center">
               <h1 className="text-xl font-bold text-gray-900">VibeMemory</h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center">
               <div className="flex flex-col items-end">
                 <span className="text-sm font-medium text-gray-900">
                   {systemUser?.name || '시스템 사용자'}
@@ -122,12 +122,18 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="mb-4">
+          <div className="mb-4 flex items-center gap-3">
             <Link
               href="/dashboard/import"
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-slate-600 hover:bg-slate-700 active:bg-slate-800 transition-colors min-h-[44px] touch-manipulation"
             >
               프로젝트 가져오기
+            </Link>
+            <Link
+              href="/dashboard/create"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-slate-600 hover:bg-slate-700 active:bg-slate-800 transition-colors min-h-[44px] touch-manipulation"
+            >
+              프로젝트 만들기
             </Link>
           </div>
 
@@ -155,32 +161,42 @@ export default function DashboardPage() {
                     window.location.href = `/dashboard/projects/${project.id}`;
                   }}
                 >
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {project.project_name || project.repo_name}
-                  </h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {project.repo_owner}
-                  </p>
-                  {project.description && (
-                    <div className="mt-3">
-                      <p className="text-xs font-medium text-gray-500 mb-1">프로젝트 소개</p>
-                      <p className="text-sm text-gray-700 line-clamp-3">
-                        {project.description}
-                      </p>
-                    </div>
-                  )}
-                  <div className="mt-4 flex items-center justify-end">
+                  {/* 프로젝트명과 삭제 버튼 */}
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-gray-900 flex-1 pr-2">
+                      {project.project_name || project.repo_name}
+                    </h3>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteClick(project.id);
                       }}
                       disabled={deletingId === project.id}
-                      className="text-sm text-red-600 hover:text-red-800 active:text-red-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] px-3 py-2 touch-manipulation"
+                      className="text-sm text-red-600 hover:text-red-800 active:text-red-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed px-2 py-1 touch-manipulation flex-shrink-0"
                     >
                       {deletingId === project.id ? '삭제 중...' : '삭제'}
                     </button>
                   </div>
+
+                  {/* 최근 업데이트 날짜 */}
+                  {project.updated_at && (
+                    <p className="text-xs text-gray-500 mb-2">
+                      {new Date(project.updated_at).toLocaleDateString('ko-KR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </p>
+                  )}
+
+                  {/* 프로젝트 소개 (프로젝트 개요 페이지의 "프로젝트 소개" 섹션 내용만 표시) */}
+                  {project.description && (
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-700 line-clamp-3">
+                        {project.description}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

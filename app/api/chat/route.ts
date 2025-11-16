@@ -5,7 +5,7 @@ import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { getSystemUserFromSupabase } from '@/lib/system-user';
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-4.1-mini';
+const MODEL = process.env.CHATGPT_MODEL || 'gpt-5-mini';
 
 export async function POST(request: NextRequest) {
   try {

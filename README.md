@@ -23,7 +23,7 @@ NEXTAUTH_URL=http://localhost:3000
 
 # OpenAI
 OPENAI_API_KEY=your-openai-api-key
-CHATGPT_MODEL=gpt-4.1-mini
+CHATGPT_MODEL=gpt-5-mini
 
 # App URL
 NEXT_PUBLIC_APP_URL=http://localhost:3000

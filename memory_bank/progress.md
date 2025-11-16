@@ -1,5 +1,25 @@
 # 완료된 작업 내역 (Progress)
 
+## [2025-01-16] - 챗봇 세션 관리 UI 구현
+- **SessionSidebar 컴포넌트 생성**:
+  - 세션 목록 표시 (최신순 정렬)
+  - 세션 검색 기능
+  - 새 세션 만들기 버튼
+  - 세션 선택 시 하이라이트
+  - 날짜 포맷팅 (상대 시간 표시)
+- **ChatInterface 세션 로드 기능**:
+  - `loadSession()` 함수 구현
+  - 기존 세션의 메시지 히스토리 로드 (최대 50개)
+  - 세션 변경 시 자동 메시지 로드
+  - 로딩 상태 표시
+  - `initialSessionId` prop으로 초기 세션 설정
+  - `onSessionChange` callback으로 세션 변경 알림
+- **프로젝트 상세 페이지 통합**:
+  - 챗봇 탭에 SessionSidebar 통합
+  - 데스크톱에서 좌측 사이드바로 표시
+  - 모바일에서는 숨김 (공간 절약)
+  - 세션 선택 시 ChatInterface에 전달
+
 ## [2025-01-16] - Citations 테이블 전환 및 Cron Worker 인증 수정
 - **Citations 테이블 전환**:
   - `chat_message_citations` 테이블 생성 및 마이그레이션 완료

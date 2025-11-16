@@ -8,7 +8,7 @@
 - **벡터 저장소**: Supabase (pgvector)
 - **상태 관리**: React Query (TanStack Query v5)
 - **UI 라이브러리**: Tailwind CSS, Shadcn/ui
-- **AI / 임베딩**: OpenAI API (gpt-4.1-mini, text-embedding-3-small)
+- **AI / 임베딩**: OpenAI API (gpt-5-mini, text-embedding-3-small)
 - **AI 챗봇 SDK**: Vercel AI SDK
 - **GitHub 연동**: @octokit/rest (GitHub API v3)
 - **인증**: NextAuth.js (GitHub OAuth Provider)
@@ -46,7 +46,7 @@
 
 ### OpenAI 관련
 - `OPENAI_API_KEY`: OpenAI API 키 (민감 정보)
-- `CHATGPT_MODEL`: 사용할 ChatGPT 모델 (`gpt-4.1-mini`)
+- `CHATGPT_MODEL`: 사용할 ChatGPT 모델 (`gpt-5-mini`)
 
 ### GitHub 관련
 - `GITHUB_CLIENT_ID`: GitHub OAuth App Client ID
