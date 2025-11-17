@@ -265,7 +265,7 @@ ${context}
     }
 
     // 5. LLM 스트리밍 호출
-    console.log('[CHAT] Calling GPT-5-mini with:', {
+    console.log('[CHAT] Calling OpenAI model with:', {
       model: MODEL,
       systemPromptLength: systemPrompt.length,
       userPromptLength: userPrompt.length,
@@ -282,7 +282,8 @@ ${context}
           ...previousMessages,
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.7,
+        // GPT-5-mini는 reasoning 모델이므로 temperature 파라미터를 지원하지 않음
+        // temperature: 0.7,
       });
       console.log('[CHAT] StreamText result created successfully');
     } catch (error) {
@@ -331,12 +332,16 @@ ${context}
 
           console.log('[CHAT] Stream completed. Total chunks:', chunkCount, 'Content length:', fullContent.length);
 
-          // GPT-5-mini 빈 응답 체크
+          // 빈 응답 체크
           if (!fullContent || fullContent.trim().length === 0) {
-            console.error('[CHAT] ⚠️ Empty response from GPT-5-mini. No content generated.');
+            console.error('[CHAT] ⚠️ Empty response from model. No content generated.', {
+              model: MODEL,
+              chunkCount,
+              hasError: false
+            });
             const errorEvent = `event: error\ndata: ${JSON.stringify({ 
               error: 'AI가 응답을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.',
-              details: 'GPT-5-mini에서 출력이 생성되지 않았습니다.'
+              details: `${MODEL}에서 출력이 생성되지 않았습니다.`
             })}\n\n`;
             controller.enqueue(encoder.encode(errorEvent));
           }
@@ -356,7 +361,7 @@ ${context}
             });
 
             // Assistant 메시지 저장 (usage는 스트림 완료 후에만 사용 가능)
-            // GPT-5-mini의 경우 빈 응답 시 usage를 가져올 수 없으므로 선택적으로 처리
+            // 빈 응답 시 usage를 가져올 수 없으므로 선택적으로 처리
             // fullContent가 비어있지 않을 때만 usage를 가져오려고 시도
             if (fullContent && fullContent.trim().length > 0) {
               try {
@@ -367,12 +372,12 @@ ${context}
                 tokensOutput = (usage as any)?.completionTokens || Math.ceil(tokensOutput);
                 console.log('[CHAT] Usage retrieved:', { tokensInput, tokensOutput });
               } catch (error) {
-                // AI_NoOutputGeneratedError는 GPT-5-mini가 응답을 생성하지 않았을 때 발생
+                // AI_NoOutputGeneratedError는 모델이 응답을 생성하지 않았을 때 발생
                 if (error instanceof Error && error.message.includes('No output generated')) {
-                  console.warn('[CHAT] GPT-5-mini did not generate output. Using estimated tokens.');
+                  console.warn('[CHAT] Model did not generate output. Using estimated tokens.', { model: MODEL });
                   // 추정값 사용 (이미 계산됨)
                 } else {
-                  console.error('[CHAT] Error getting usage:', error);
+                  console.error('[CHAT] Error getting usage:', error, { model: MODEL });
                   // 추정값 사용 (이미 계산됨)
                 }
               }

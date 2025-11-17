@@ -71,7 +71,8 @@ export async function POST(request: NextRequest) {
     const result = await streamText({
       model: openai(MODEL),
       messages: messagesWithContext,
-      temperature: 0.7,
+      // GPT-5-mini는 reasoning 모델이므로 temperature 파라미터를 지원하지 않음
+      // temperature: 0.7,
     });
 
     return result.toTextStreamResponse();

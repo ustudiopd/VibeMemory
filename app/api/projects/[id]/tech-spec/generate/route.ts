@@ -142,7 +142,8 @@ ${ragContext ? `[코드베이스 검색 결과]\n${ragContext}` : ''}
       model: openai(MODEL),
       system: systemPrompt,
       prompt: userPrompt,
-      temperature: 0.3, // 일관성 있는 출력을 위해 낮은 temperature
+      // GPT-5-mini는 reasoning 모델이므로 temperature 파라미터를 지원하지 않음
+      // temperature: 0.3,
     });
 
     // GPT-5-mini 빈 응답 체크
