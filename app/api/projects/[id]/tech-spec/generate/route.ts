@@ -5,7 +5,7 @@ import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 import { getSystemUserFromSupabase } from '@/lib/system-user';
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-4.1-mini';
+const MODEL = process.env.CHATGPT_MODEL || 'gpt-4o-mini';
 
 /**
  * POST /api/projects/[id]/tech-spec/generate
@@ -147,11 +147,11 @@ ${ragContext ? `[코드베이스 검색 결과]\n${ragContext}` : ''}
 
     // 빈 응답 체크
     if (!techSpec || techSpec.trim().length === 0) {
-      console.error('[TECH-SPEC] ⚠️ Empty response from GPT-4.1-mini.');
+      console.error('[TECH-SPEC] ⚠️ Empty response from GPT-4o-mini.');
       return NextResponse.json(
         {
           error: 'AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.',
-          details: 'GPT-4.1-mini에서 응답을 생성하지 못했습니다.',
+          details: 'GPT-4o-mini에서 응답을 생성하지 못했습니다.',
         },
         { status: 500 }
       );

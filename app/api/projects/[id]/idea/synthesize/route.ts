@@ -4,7 +4,7 @@ import { getSystemUserFromSupabase } from '@/lib/system-user';
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-4.1-mini';
+const MODEL = process.env.CHATGPT_MODEL || 'gpt-4o-mini';
 
 /**
  * POST /api/projects/[id]/idea/synthesize
@@ -129,7 +129,7 @@ export async function POST(
       : fullContext;
 
     // 4. AI 합성
-    console.log('[SYNTHESIZE] Generating specification with GPT-4.1-mini...');
+    console.log('[SYNTHESIZE] Generating specification with GPT-4o-mini...');
     console.log('[SYNTHESIZE] Context length:', truncatedContext.length, 'characters');
     const prompt = `다음은 사용자가 업로드한 아이디어 파일과 챗봇 대화 기록입니다. 이를 기반으로 프로젝트 명세서를 작성해주세요.
 
@@ -170,15 +170,15 @@ ${truncatedContext}
       prompt: prompt,
     });
 
-    console.log('[SYNTHESIZE] GPT-4.1-mini response received, length:', specification?.length || 0);
+    console.log('[SYNTHESIZE] GPT-4o-mini response received, length:', specification?.length || 0);
 
     // 빈 응답 체크
     if (!specification || specification.trim().length === 0) {
-      console.error('[SYNTHESIZE] ⚠️ Empty response from GPT-4.1-mini.');
+      console.error('[SYNTHESIZE] ⚠️ Empty response from GPT-4o-mini.');
       return NextResponse.json(
         {
           error: 'AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.',
-          details: 'GPT-4.1-mini에서 응답을 생성하지 못했습니다.',
+          details: 'GPT-4o-mini에서 응답을 생성하지 못했습니다.',
         },
         { status: 500 }
       );
