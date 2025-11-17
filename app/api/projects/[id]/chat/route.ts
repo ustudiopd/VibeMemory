@@ -350,25 +350,30 @@ ${context}
 
             // Assistant 메시지 저장 (usage는 스트림 완료 후에만 사용 가능)
             // GPT-5-mini의 경우 빈 응답 시 usage를 가져올 수 없으므로 선택적으로 처리
-            try {
-              // 스트림이 완료된 후 usage 가져오기 시도
-              const usage = await result.usage;
-              // AI SDK v2의 LanguageModelV2Usage 타입에 맞게 속성 접근
-              tokensInput = (usage as any)?.promptTokens || 0;
-              tokensOutput = (usage as any)?.completionTokens || Math.ceil(tokensOutput);
-            } catch (error) {
-              // AI_NoOutputGeneratedError는 GPT-5-mini가 응답을 생성하지 않았을 때 발생
-              if (error instanceof Error && error.message.includes('No output generated')) {
-                console.warn('[CHAT] GPT-5-mini did not generate output. Using estimated tokens.');
-                // 빈 응답이면 토큰 수를 0으로 설정
-                if (!fullContent || fullContent.trim().length === 0) {
-                  tokensInput = 0;
-                  tokensOutput = 0;
+            // fullContent가 비어있지 않을 때만 usage를 가져오려고 시도
+            if (fullContent && fullContent.trim().length > 0) {
+              try {
+                // 스트림이 완료된 후 usage 가져오기 시도
+                const usage = await result.usage;
+                // AI SDK v2의 LanguageModelV2Usage 타입에 맞게 속성 접근
+                tokensInput = (usage as any)?.promptTokens || 0;
+                tokensOutput = (usage as any)?.completionTokens || Math.ceil(tokensOutput);
+                console.log('[CHAT] Usage retrieved:', { tokensInput, tokensOutput });
+              } catch (error) {
+                // AI_NoOutputGeneratedError는 GPT-5-mini가 응답을 생성하지 않았을 때 발생
+                if (error instanceof Error && error.message.includes('No output generated')) {
+                  console.warn('[CHAT] GPT-5-mini did not generate output. Using estimated tokens.');
+                  // 추정값 사용 (이미 계산됨)
+                } else {
+                  console.error('[CHAT] Error getting usage:', error);
+                  // 추정값 사용 (이미 계산됨)
                 }
-              } else {
-                console.error('[CHAT] Error getting usage:', error);
               }
-              // usage를 가져오지 못해도 계속 진행 (추정값 사용)
+            } else {
+              // 빈 응답이면 토큰 수를 0으로 설정
+              console.warn('[CHAT] Empty response, setting tokens to 0');
+              tokensInput = 0;
+              tokensOutput = 0;
             }
 
             // Assistant 메시지 저장
