@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
   try {
     // pending 상태의 작업 조회 (최신순, 배치 크기만큼)
     const { data: jobs, error: fetchError } = await supabaseAdmin
+      .schema('vibememory')
       .from('webhook_jobs')
       .select('*')
       .eq('status', 'pending')
@@ -74,6 +75,7 @@ export async function GET(request: NextRequest) {
       try {
         // 상태를 running으로 변경
         await supabaseAdmin
+          .schema('vibememory')
           .from('webhook_jobs')
           .update({ status: 'running' })
           .eq('id', job.id);

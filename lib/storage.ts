@@ -80,8 +80,11 @@ export async function uploadFileToStorage(
     // 파일명 추출 (경로의 마지막 부분)
     const filename = filePath.split('/').pop() || filePath;
     
-    // Storage 경로 생성: {project_id}/{sha}/{filename}
-    const storagePath = `${projectId}/${sha}/${filename}`;
+    // 한글 및 특수문자 제거를 위한 안전한 파일명 생성
+    const safeFilename = sanitizeFilename(filename);
+    
+    // Storage 경로 생성: {project_id}/{sha}/{safe_filename}
+    const storagePath = `${projectId}/${sha}/${safeFilename}`;
     
     // 파일 업로드
     const { data, error } = await supabaseAdmin.storage
@@ -93,10 +96,11 @@ export async function uploadFileToStorage(
 
     if (error) {
       console.error(`[STORAGE] Error uploading file ${storagePath}:`, error);
+      console.error(`[STORAGE] Original filename: ${filename}, Safe filename: ${safeFilename}`);
       return null;
     }
 
-    console.log(`[STORAGE] Uploaded file to ${storagePath}`);
+    console.log(`[STORAGE] Uploaded file to ${storagePath} (original: ${filename})`);
     return storagePath;
   } catch (error) {
     console.error(`[STORAGE] Exception uploading file:`, error);
@@ -157,7 +161,8 @@ export async function deleteFileFromStorage(
  */
 export function getStoragePath(projectId: string, sha: string, filePath: string): string {
   const filename = filePath.split('/').pop() || filePath;
-  return `${projectId}/${sha}/${filename}`;
+  const safeFilename = sanitizeFilename(filename);
+  return `${projectId}/${sha}/${safeFilename}`;
 }
 
 // ========== 스크린샷 관련 함수 ==========
