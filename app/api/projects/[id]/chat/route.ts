@@ -352,11 +352,14 @@ ${context}
 
             // Citations 테이블에 저장
             if (assistantMessage && sources && sources.length > 0) {
+              // 아이디어 프로젝트의 경우 chunk_id는 idea_project_chunks를 참조하므로
+              // repo_file_chunks를 참조하는 chat_message_citations에는 null로 설정
               const citations = sources.map((source: any) => ({
                 message_id: assistantMessage.id,
                 project_id: projectId,
                 file_path: source.file_path || '',
-                chunk_id: source.chunk_id || null,
+                // GitHub 프로젝트만 chunk_id 저장, 아이디어 프로젝트는 null
+                chunk_id: project.project_type === 'github' ? (source.chunk_id || null) : null,
                 score: source.score || null,
               }));
 
@@ -377,10 +380,21 @@ ${context}
           }
         } catch (error) {
           console.error('[CHAT] Stream error:', error);
-          const errorEvent = `event: error\ndata: ${JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' })}\n\n`;
-          controller.enqueue(encoder.encode(errorEvent));
+          try {
+            // 컨트롤러가 이미 닫혔는지 확인
+            const errorEvent = `event: error\ndata: ${JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' })}\n\n`;
+            controller.enqueue(encoder.encode(errorEvent));
+          } catch (enqueueError) {
+            // 컨트롤러가 이미 닫혔으면 무시
+            console.error('[CHAT] Error enqueueing error event (controller may be closed):', enqueueError);
+          }
         } finally {
-          controller.close();
+          try {
+            controller.close();
+          } catch (closeError) {
+            // 컨트롤러가 이미 닫혔으면 무시
+            console.error('[CHAT] Error closing controller (may already be closed):', closeError);
+          }
         }
       },
     });
