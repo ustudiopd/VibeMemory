@@ -273,17 +273,24 @@ ${context}
       totalMessagesCount: previousMessages.length + 2,
     });
 
-    const result = await streamText({
-      model: openai(MODEL),
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...previousMessages,
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.7,
-    });
+    let result;
+    try {
+      result = await streamText({
+        model: openai(MODEL),
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...previousMessages,
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+      });
+      console.log('[CHAT] StreamText result created successfully');
+    } catch (error) {
+      console.error('[CHAT] Error creating streamText:', error);
+      throw error;
+    }
 
-    console.log('[CHAT] StreamText result created, starting to read stream...');
+    console.log('[CHAT] Starting to read stream...');
 
     // 6. SSE 스트림 생성
     const encoder = new TextEncoder();
