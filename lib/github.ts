@@ -128,7 +128,43 @@ export async function getFileContent(
 }
 
 /**
- * 파일 내용과 SHA를 함께 가져오기
+ * GitHub API 재시도 유틸리티 (지수 백오프)
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      
+      // 429 (Rate Limit) 또는 5xx 에러만 재시도
+      const statusCode = error?.status || error?.response?.status;
+      if (statusCode && (statusCode === 429 || (statusCode >= 500 && statusCode < 600))) {
+        if (attempt < maxAttempts - 1) {
+          // 지수 백오프: 1s, 2s, 4s...
+          const delay = baseDelay * Math.pow(2, attempt);
+          console.warn(`[GITHUB] API error ${statusCode}, retrying in ${delay}ms (attempt ${attempt + 1}/${maxAttempts})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+      
+      // 재시도 불가능한 에러 또는 최대 재시도 횟수 초과
+      throw error;
+    }
+  }
+  
+  throw lastError || new Error('Unknown error');
+}
+
+/**
+ * 파일 내용과 SHA를 함께 가져오기 (재시도 포함)
  */
 export async function getFileContentWithSha(
   accessToken: string,
@@ -136,21 +172,23 @@ export async function getFileContentWithSha(
   repo: string,
   path: string
 ): Promise<{ content: string; sha: string }> {
-  const octokit = createGitHubClient(accessToken);
-  const { data } = await octokit.repos.getContent({
-    owner,
-    repo,
-    path,
+  return withRetry(async () => {
+    const octokit = createGitHubClient(accessToken);
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path,
+    });
+    
+    if ('content' in data && data.encoding === 'base64' && 'sha' in data) {
+      return {
+        content: Buffer.from(data.content, 'base64').toString('utf-8'),
+        sha: data.sha,
+      };
+    }
+    
+    throw new Error('Invalid file content');
   });
-  
-  if ('content' in data && data.encoding === 'base64' && 'sha' in data) {
-    return {
-      content: Buffer.from(data.content, 'base64').toString('utf-8'),
-      sha: data.sha,
-    };
-  }
-  
-  throw new Error('Invalid file content');
 }
 
 /**
@@ -185,5 +223,67 @@ export async function getRepositoryInfo(
     repo,
   });
   return data;
+}
+
+/**
+ * Compare API로 변경 파일 목록 가져오기 (재시도 포함)
+ * push 이벤트의 before/after SHA를 사용하여 정확한 변경 파일 목록을 얻습니다.
+ */
+export async function getChangedFilesFromCompare(
+  accessToken: string,
+  owner: string,
+  repo: string,
+  baseSha: string,
+  headSha: string
+): Promise<{
+  modified: string[];
+  added: string[];
+  removed: string[];
+}> {
+  return withRetry(async () => {
+    const octokit = createGitHubClient(accessToken);
+    const { data } = await octokit.repos.compareCommits({
+      owner,
+      repo,
+      base: baseSha,
+      head: headSha,
+    });
+
+    const modified: string[] = [];
+    const added: string[] = [];
+    const removed: string[] = [];
+
+    // files 배열에서 변경 유형별로 분류
+    if (data.files) {
+      for (const file of data.files) {
+        // .md 파일만 필터링
+        if (!file.filename?.endsWith('.md')) {
+          continue;
+        }
+
+        if (file.status === 'modified') {
+          modified.push(file.filename);
+        } else if (file.status === 'added') {
+          added.push(file.filename);
+        } else if (file.status === 'removed') {
+          removed.push(file.filename);
+        } else if (file.status === 'renamed' && file.previous_filename) {
+          // renamed는 이전 파일을 removed, 새 파일을 added로 처리
+          if (file.previous_filename.endsWith('.md')) {
+            removed.push(file.previous_filename);
+          }
+          if (file.filename.endsWith('.md')) {
+            added.push(file.filename);
+          }
+        }
+      }
+    }
+
+    return {
+      modified: [...new Set(modified)], // 중복 제거
+      added: [...new Set(added)],
+      removed: [...new Set(removed)],
+    };
+  });
 }
 

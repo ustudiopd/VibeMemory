@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/scan-worker",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/process-webhook-jobs",
+      "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-old-chunks",
+      "schedule": "0 2 * * *"
     }
   ]
 }

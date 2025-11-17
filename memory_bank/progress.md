@@ -1,5 +1,40 @@
 # 완료된 작업 내역 (Progress)
 
+## [2025-01-XX] - 웹훅 연동 신뢰성 및 성능 개선
+- **런타임 설정 추가**:
+  - `app/api/github/webhook/route.ts`에 Node.js 런타임 및 maxDuration 설정
+  - crypto 모듈 및 Service Role Key 사용 안전성 확보
+- **Idempotency 보장**:
+  - `webhook_deliveries` 테이블 생성 (Supabase MCP)
+  - `X-GitHub-Delivery` 헤더 기반 중복 처리 방지
+  - 처리 상태 추적 및 에러 정보 저장
+- **브랜치 필터링**:
+  - 기본 브랜치만 처리하도록 필터링
+  - 다른 브랜치 push는 기록만 남기고 200 OK 반환
+- **상관관계 ID 로깅**:
+  - 모든 로그에 `deliveryId`, `projectId`, `jobName` 포함
+  - `logContext` 객체로 일관된 로깅
+- **GitHub API 재시도 적용**:
+  - `lib/github.ts`에 `withRetry` 유틸리티 추가
+  - 429(Rate Limit) 및 5xx 에러에 지수 백오프 재시도
+  - `getFileContentWithSha`에 재시도 로직 적용
+- **빠른 ACK + 작업 큐 시스템**:
+  - `webhook_jobs` 테이블 생성 (Supabase MCP)
+  - 웹훅 라우트를 빠른 ACK 방식으로 변경
+  - `/api/cron/process-webhook-jobs` 워커 라우트 생성
+  - 배치 처리 및 재시도 메커니즘 구현
+  - Vercel Cron 설정 추가 (매 1분마다 실행)
+- **Compare API로 변경 파일 재검증**:
+  - `lib/github.ts`에 `getChangedFilesFromCompare` 함수 추가
+  - push 이벤트의 `before`/`after` SHA로 Compare API 호출
+  - 변경 파일 목록 정확도 향상
+  - Fallback 메커니즘 구현
+- **야간 배치로 Old 청크 정리**:
+  - `/api/cron/cleanup-old-chunks` 크론 작업 생성
+  - 30일 이상 된 `is_current=false` 청크 자동 삭제
+  - Orphaned files 정리
+  - Vercel Cron 설정 추가 (매일 새벽 2시 실행)
+
 ## [2025-01-XX] - GPT-4.1-mini로 롤백 및 max_tokens 제한 복원
 - **모델 롤백**: 
   - `gpt-5-mini` → `gpt-4.1-mini`로 모든 API 엔드포인트 변경

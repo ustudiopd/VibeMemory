@@ -77,8 +77,45 @@
 ## 6. 데이터베이스 RPC 함수
 다음 RPC 함수들이 구현되어 있습니다:
 - `public.claim_job(p_job_name, p_duration)`: 작업 잠금 관리
+- `public.force_claim_job(p_job_name, p_duration)`: 작업 잠금 강제 획득
 - `public.get_project_progress(p_project_id)`: 프로젝트 진행률 조회
 - `public.get_user_projects(p_owner_id)`: 사용자 프로젝트 목록 조회
-- `public.insert_repo_file_chunks(p_chunks)`: 벡터 임베딩 청크 삽입 (개선 필요)
+- `public.insert_repo_file_chunks(p_chunks)`: 벡터 임베딩 청크 삽입
 - `vibememory.hybrid_search_rrf(...)`: 하이브리드 검색 (RRF)
+
+## 7. 웹훅 관련 테이블
+- `vibememory.webhook_deliveries`: 웹훅 Delivery Idempotency 테이블
+  - `delivery_id` (text, PK): GitHub Delivery ID
+  - `event` (text): 이벤트 타입
+  - `status` (text): 처리 상태 (pending, processing, done, error)
+  - `project_id` (uuid): 프로젝트 ID
+  - `error_json` (jsonb): 에러 정보
+  - `received_at`, `processed_at`: 타임스탬프
+- `vibememory.webhook_jobs`: 웹훅 작업 큐 테이블
+  - `id` (uuid, PK): 작업 ID
+  - `delivery_id` (text, UNIQUE): GitHub Delivery ID
+  - `project_id` (uuid): 프로젝트 ID
+  - `payload` (jsonb): 웹훅 페이로드
+  - `status` (text): 작업 상태 (pending, running, done, error)
+  - `retry_count` (integer): 재시도 횟수
+  - `max_retries` (integer): 최대 재시도 횟수
+  - `error_json` (jsonb): 에러 정보
+  - `created_at`, `updated_at`, `processed_at`: 타임스탬프
+
+## 8. 크론 작업 (Vercel Cron)
+- `/api/cron/scan-worker`: 매 분마다 실행 (`* * * * *`)
+- `/api/cron/process-webhook-jobs`: 매 1분마다 실행 (`*/1 * * * *`)
+  - 웹훅 작업 큐에서 pending 작업을 가져와 처리
+  - 배치 처리 (한 번에 최대 5개 작업)
+  - 재시도 메커니즘 (최대 3회, 지수 백오프)
+- `/api/cron/cleanup-old-chunks`: 매일 새벽 2시 실행 (`0 2 * * *`)
+  - 30일 이상 된 `is_current=false` 청크 자동 삭제
+  - Orphaned files 정리
+
+## 9. GitHub API 유틸리티
+- `getFileContentWithSha`: 파일 내용과 SHA 가져오기 (재시도 포함)
+- `getChangedFilesFromCompare`: Compare API로 변경 파일 목록 가져오기
+  - push 이벤트의 `before`/`after` SHA로 Compare API 호출
+  - 변경 파일 목록 정확도 향상 (중복 제거, renamed 처리)
+  - Fallback 메커니즘 구현
 
