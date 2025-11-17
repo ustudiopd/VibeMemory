@@ -32,19 +32,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // pending 상태의 작업 조회 (최신순, 배치 크기만큼)
+    // 원자적 클레임: pending 작업을 running으로 전환하며 가져오기
     const { data: jobs, error: fetchError } = await supabaseAdmin
-      .schema('vibememory')
-      .from('webhook_jobs')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true })
-      .limit(BATCH_SIZE);
+      .rpc('claim_webhook_jobs', { p_limit: BATCH_SIZE });
 
     if (fetchError) {
-      console.error('[WEBHOOK-WORKER] Error fetching jobs:', fetchError);
+      console.error('[WEBHOOK-WORKER] Error claiming jobs:', fetchError);
       return NextResponse.json(
-        { error: 'Failed to fetch jobs', details: fetchError },
+        { error: 'Failed to claim jobs', details: fetchError },
         { status: 500 }
       );
     }
@@ -64,7 +59,7 @@ export async function GET(request: NextRequest) {
       failed: 0,
     };
 
-    // 각 작업 처리
+    // 각 작업 처리 (이미 running 상태로 클레임됨)
     for (const job of jobs) {
       const logContext = {
         jobId: job.id,
@@ -73,12 +68,6 @@ export async function GET(request: NextRequest) {
       };
 
       try {
-        // 상태를 running으로 변경
-        await supabaseAdmin
-          .schema('vibememory')
-          .from('webhook_jobs')
-          .update({ status: 'running' })
-          .eq('id', job.id);
 
         console.log(`[WEBHOOK-WORKER] Processing job`, logContext);
 
