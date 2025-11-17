@@ -1,14 +1,13 @@
 import OpenAI from 'openai';
 import { supabaseAdmin } from './supabase';
 import { embedText } from './rag';
-import { normalizeModel, isReasoningModel, getModelOptions } from './model-utils';
+import { normalizeModel, getModelOptions } from './model-utils';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 const MODEL = normalizeModel(process.env.CHATGPT_MODEL);
-const IS_REASONING = isReasoningModel(MODEL);
 
 async function updateScanProgress(
   runId: string,
@@ -217,21 +216,22 @@ async function generateIdeaReview(context: string): Promise<string> {
 ${context || '(관련 문서를 찾을 수 없습니다)'}
 ---`;
 
-  // Reasoning 모델 분기 처리 (해결책.md 2장)
-  const modelOptions = getModelOptions(MODEL, 0.7);
+  // GPT-4.1-mini는 일반 모델이므로 temperature, max_tokens 사용
+  const modelOptions = getModelOptions(MODEL, 0.7, 2000);
   
   const response = await openai.chat.completions.create({
     model: MODEL,
     messages: [{ role: 'user', content: prompt }],
-    ...modelOptions, // Reasoning 모델이면 옵션 없음
+    temperature: modelOptions.temperature,
+    max_tokens: modelOptions.maxTokens, // GPT-4.1-mini는 max_tokens 사용 가능
   });
 
   const content = response.choices[0].message.content || '';
   
   // 빈 응답 체크
   if (!content || content.trim().length === 0) {
-    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateIdeaReview.');
-    throw new Error('GPT-5-mini returned empty response for idea review');
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-4.1-mini in generateIdeaReview.');
+    throw new Error('GPT-4.1-mini returned empty response for idea review');
   }
   
   return content;
@@ -252,21 +252,22 @@ async function generateTechReview(context: string): Promise<string> {
 ${context || '(관련 기술 문서를 찾을 수 없습니다)'}
 ---`;
 
-  // Reasoning 모델 분기 처리 (해결책.md 2장)
-  const modelOptions = getModelOptions(MODEL, 0.7);
+  // GPT-4.1-mini는 일반 모델이므로 temperature, max_tokens 사용
+  const modelOptions = getModelOptions(MODEL, 0.7, 2000);
   
   const response = await openai.chat.completions.create({
     model: MODEL,
     messages: [{ role: 'user', content: prompt }],
-    ...modelOptions, // Reasoning 모델이면 옵션 없음
+    temperature: modelOptions.temperature,
+    max_tokens: modelOptions.maxTokens, // GPT-4.1-mini는 max_tokens 사용 가능
   });
 
   const content = response.choices[0].message.content || '';
   
   // 빈 응답 체크
   if (!content || content.trim().length === 0) {
-    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateTechReview.');
-    throw new Error('GPT-5-mini returned empty response for tech review');
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-4.1-mini in generateTechReview.');
+    throw new Error('GPT-4.1-mini returned empty response for tech review');
   }
   
   return content;
@@ -300,21 +301,22 @@ ${techReview}
 ${context || '(추가 컨텍스트를 찾을 수 없습니다)'}
 ---`;
 
-  // Reasoning 모델 분기 처리 (해결책.md 2장)
-  const modelOptions = getModelOptions(MODEL, 0.7);
+  // GPT-4.1-mini는 일반 모델이므로 temperature, max_tokens 사용
+  const modelOptions = getModelOptions(MODEL, 0.7, 2000);
   
   const response = await openai.chat.completions.create({
     model: MODEL,
     messages: [{ role: 'user', content: prompt }],
-    ...modelOptions, // Reasoning 모델이면 옵션 없음
+    temperature: modelOptions.temperature,
+    max_tokens: modelOptions.maxTokens, // GPT-4.1-mini는 max_tokens 사용 가능
   });
 
   const content = response.choices[0].message.content || '';
   
   // 빈 응답 체크
   if (!content || content.trim().length === 0) {
-    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generatePatentReview.');
-    throw new Error('GPT-5-mini returned empty response for patent review');
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-4.1-mini in generatePatentReview.');
+    throw new Error('GPT-4.1-mini returned empty response for patent review');
   }
   
   return content;
@@ -349,21 +351,22 @@ ${context || '(관련 문서를 찾을 수 없습니다)'}
 
 ---`;
 
-  // Reasoning 모델 분기 처리 (해결책.md 2장)
-  const modelOptions = getModelOptions(MODEL, 0.7);
+  // GPT-4.1-mini는 일반 모델이므로 temperature, max_tokens 사용
+  const modelOptions = getModelOptions(MODEL, 0.7, 2000);
   
   const response = await openai.chat.completions.create({
-    model: MODEL, // 'gpt-5-mini'
+    model: MODEL, // 'gpt-4.1-mini'
     messages: [{ role: 'user', content: prompt }],
-    ...modelOptions, // Reasoning 모델이면 옵션 없음
+    temperature: modelOptions.temperature,
+    max_tokens: modelOptions.maxTokens, // GPT-4.1-mini는 max_tokens 사용 가능
   });
 
   const content = response.choices[0].message.content || '';
   
   // 빈 응답 체크
   if (!content || content.trim().length === 0) {
-    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateProjectSummary.');
-    throw new Error('GPT-5-mini returned empty response for project summary');
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-4.1-mini in generateProjectSummary.');
+    throw new Error('GPT-4.1-mini returned empty response for project summary');
   }
   
   return content;
@@ -380,21 +383,22 @@ export async function generateReleaseNote(commitMessages: string[]): Promise<str
 ${commitMessages.join('\n')}
 ---`;
 
-  // Reasoning 모델 분기 처리 (해결책.md 2장)
-  const modelOptions = getModelOptions(MODEL, 0.7);
+  // GPT-4.1-mini는 일반 모델이므로 temperature, max_tokens 사용
+  const modelOptions = getModelOptions(MODEL, 0.7, 2000);
   
   const response = await openai.chat.completions.create({
     model: MODEL,
     messages: [{ role: 'user', content: prompt }],
-    ...modelOptions, // Reasoning 모델이면 옵션 없음
+    temperature: modelOptions.temperature,
+    max_tokens: modelOptions.maxTokens, // GPT-4.1-mini는 max_tokens 사용 가능
   });
 
   const content = response.choices[0].message.content || '';
   
   // 빈 응답 체크
   if (!content || content.trim().length === 0) {
-    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateReleaseNote.');
-    throw new Error('GPT-5-mini returned empty response for release note');
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-4.1-mini in generateReleaseNote.');
+    throw new Error('GPT-4.1-mini returned empty response for release note');
   }
   
   return content;

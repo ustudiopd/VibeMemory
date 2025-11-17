@@ -8,11 +8,12 @@
 - **벡터 저장소**: Supabase (pgvector)
 - **상태 관리**: React Query (TanStack Query v5)
 - **UI 라이브러리**: Tailwind CSS, Shadcn/ui
-- **AI / 임베딩**: OpenAI API (gpt-5-mini, text-embedding-3-small)
-  - **모델**: GPT-5-mini (reasoning 모델)
-    - Reasoning 모델 특성: `temperature`, `maxTokens` 파라미터 사용 금지
+- **AI / 임베딩**: OpenAI API (gpt-4.1-mini, text-embedding-3-small)
+  - **모델**: GPT-4.1-mini (일반 모델)
+    - 일반 모델 특성: `temperature`, `maxTokens` 파라미터 사용 가능
     - 모델명 정규화: 비ASCII 하이픈 처리 (`lib/model-utils.ts`)
-    - 빈 스트림 폴백: gpt-4o-mini로 자동 재시도
+    - maxTokens 제한: 2000-3000 토큰 (API별 상이)
+    - temperature: 0.3-0.7 (API별 상이)
   - **임베딩**: text-embedding-3-small
 - **AI 챗봇 SDK**: Vercel AI SDK
 - **GitHub 연동**: @octokit/rest (GitHub API v3)
@@ -54,7 +55,7 @@
 
 ### OpenAI 관련
 - `OPENAI_API_KEY`: OpenAI API 키 (민감 정보)
-- `CHATGPT_MODEL`: 사용할 ChatGPT 모델 (`gpt-5-mini`)
+- `CHATGPT_MODEL`: 사용할 ChatGPT 모델 (`gpt-4.1-mini`)
 
 ### GitHub 관련
 - `GITHUB_CLIENT_ID`: GitHub OAuth App Client ID

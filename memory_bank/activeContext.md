@@ -1,15 +1,35 @@
 # 현재 작업 상황 (Active Context)
 
 ## 1. 현재 집중하고 있는 작업  
-- **작업명**: 아이디어 캔버스 파일 미리보기 기능 구현 완료
+- **작업명**: GPT-4.1-mini로 롤백 및 max_tokens 제한 복원 완료
 - **목표**: 
-  - 아이디어 캔버스에 업로드된 txt, md 파일 미리보기 기능 추가
-  - react-markdown을 사용한 마크다운 렌더링
-  - 사용자 경험 개선
+  - GPT-5-mini에서 GPT-4.1-mini로 롤백
+  - max_tokens 제한 복원 (2000-3000 토큰)
+  - Reasoning 모델 분기 처리 제거
+  - 안정적인 모델 사용
 - **상태**: ✅ 구현 완료
-- **다음 단계**: 사용자 테스트 및 피드백
+- **다음 단계**: 배포 테스트 및 검증
 
 ## 2. 최근 완료된 작업 (2025-01-XX)
+
+### GPT-4.1-mini로 롤백 및 max_tokens 제한 복원 (2025-01-XX)
+- ✅ **모델 롤백** (`gpt-5-mini` → `gpt-4.1-mini`)
+  - 모든 API 엔드포인트에서 모델 이름 변경
+  - `app/api/projects/[id]/chat/route.ts`
+  - `app/api/chat/route.ts`
+  - `lib/analysisService.ts`
+  - `app/api/projects/[id]/tech-spec/generate/route.ts`
+  - `app/api/projects/[id]/idea/synthesize/route.ts`
+- ✅ **max_tokens 제한 복원**
+  - 모든 API에서 `maxTokens` 옵션 복원 (2000-3000 토큰)
+  - `temperature` 옵션 사용 (0.3-0.7)
+  - Reasoning 모델 분기 처리 제거
+- ✅ **코드 정리**
+  - `lib/model-utils.ts`에서 Reasoning 모델 감지 로직 제거
+  - `isReasoningModel` 함수 제거
+  - `getModelOptions` 함수 단순화 (항상 옵션 반환)
+- ✅ **에러 메시지 업데이트**
+  - 모든 에러 메시지에서 모델명 변경 (GPT-5-mini → GPT-4.1-mini)
 
 ### 아이디어 캔버스 파일 미리보기 기능 (2025-01-XX)
 - ✅ **파일 미리보기 API 구현**

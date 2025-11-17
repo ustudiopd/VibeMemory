@@ -156,8 +156,8 @@ ${ragContext ? `[코드베이스 검색 결과]\n${ragContext}` : ''}
 
 위 정보를 바탕으로 프로젝트의 기술 스펙을 구조화하여 정리해주세요.`;
 
-    // Reasoning 모델 분기 처리 (해결책.md 2장)
-    const modelOptions = getModelOptions(MODEL, 0.3);
+    // GPT-4.1-mini는 일반 모델이므로 temperature, maxTokens 사용
+    const modelOptions = getModelOptions(MODEL, 0.3, 2000);
     
     console.log('[TECH-SPEC] Calling generateText with options:', modelOptions);
     
@@ -165,18 +165,18 @@ ${ragContext ? `[코드베이스 검색 결과]\n${ragContext}` : ''}
       model: openai(MODEL),
       system: systemPrompt,
       prompt: userPrompt,
-      ...modelOptions, // Reasoning 모델이면 옵션 없음 (일반 모델이면 temperature: 0.3)
+      ...modelOptions, // temperature: 0.3, maxTokens: 2000
     });
 
     console.log('[TECH-SPEC] GPT generation completed, length:', techSpec?.length || 0);
 
     // 빈 응답 체크
     if (!techSpec || techSpec.trim().length === 0) {
-      console.error('[TECH-SPEC] ⚠️ Empty response from GPT-5-mini.');
+      console.error('[TECH-SPEC] ⚠️ Empty response from GPT-4.1-mini.');
       return NextResponse.json(
         {
           error: 'AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.',
-          details: 'GPT-5-mini에서 응답을 생성하지 못했습니다.',
+          details: 'GPT-4.1-mini에서 응답을 생성하지 못했습니다.',
         },
         { status: 500 }
       );

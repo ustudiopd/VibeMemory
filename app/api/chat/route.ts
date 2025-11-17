@@ -73,18 +73,18 @@ export async function POST(request: NextRequest) {
     ];
 
     // Stream response
-    // Reasoning 모델 분기 처리 (해결책.md 2장)
-    const modelOptions = getModelOptions(MODEL, 0.7);
+    // GPT-4.1-mini는 일반 모델이므로 temperature, maxTokens 사용
+    const modelOptions = getModelOptions(MODEL, 0.7, 2000);
     
     console.log('[CHAT] Calling OpenAI model with:', {
       model: MODEL,
       options: modelOptions,
     });
-    
+
     const result = await streamText({
       model: openai(MODEL),
       messages: messagesWithContext,
-      ...modelOptions, // Reasoning 모델이면 옵션 없음
+      ...modelOptions, // temperature, maxTokens 사용
     });
 
     return result.toTextStreamResponse();

@@ -134,8 +134,8 @@ export async function POST(
       : fullContext;
 
     // 4. AI 합성
-    // Reasoning 모델 분기 처리 (해결책.md 2장)
-    const modelOptions = getModelOptions(MODEL);
+    // GPT-4.1-mini는 일반 모델이므로 temperature, maxTokens 사용
+    const modelOptions = getModelOptions(MODEL, 0.7, 3000);
     
     console.log('[SYNTHESIZE] Generating specification with', MODEL, '...');
     console.log('[SYNTHESIZE] Context length:', truncatedContext.length, 'characters');
@@ -178,18 +178,18 @@ ${truncatedContext}
     const { text: specification } = await generateText({
       model: openai(MODEL),
       prompt: prompt,
-      ...modelOptions, // Reasoning 모델이면 옵션 없음
+      ...modelOptions, // temperature, maxTokens 사용
     });
 
-    console.log('[SYNTHESIZE] GPT-5-mini response received, length:', specification?.length || 0);
+    console.log('[SYNTHESIZE] GPT-4.1-mini response received, length:', specification?.length || 0);
 
     // 빈 응답 체크
     if (!specification || specification.trim().length === 0) {
-      console.error('[SYNTHESIZE] ⚠️ Empty response from GPT-5-mini.');
+      console.error('[SYNTHESIZE] ⚠️ Empty response from GPT-4.1-mini.');
       return NextResponse.json(
         {
           error: 'AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.',
-          details: 'GPT-5-mini에서 응답을 생성하지 못했습니다.',
+          details: 'GPT-4.1-mini에서 응답을 생성하지 못했습니다.',
         },
         { status: 500 }
       );

@@ -4,14 +4,13 @@ import { embedText } from '@/lib/rag';
 import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { getSystemUserFromSupabase } from '@/lib/system-user';
-import { normalizeModel, isReasoningModel, getModelOptions } from '@/lib/model-utils';
+import { normalizeModel, getModelOptions } from '@/lib/model-utils';
 
 // Edge 런타임 + maxDuration 설정 (해결책.md 1장)
 export const runtime = 'edge';
 export const maxDuration = 60;
 
 const MODEL = normalizeModel(process.env.CHATGPT_MODEL);
-const IS_REASONING = isReasoningModel(MODEL);
 
 /**
  * POST /api/projects/[id]/chat
@@ -271,12 +270,11 @@ ${context}
     }
 
     // 5. LLM 스트리밍 호출
-    // Reasoning 모델 분기 처리 (해결책.md 2장)
-    const modelOptions = getModelOptions(MODEL, 0.7);
+    // GPT-4.1-mini는 일반 모델이므로 temperature, maxTokens 사용
+    const modelOptions = getModelOptions(MODEL, 0.7, 2000);
     
     console.log('[CHAT] Calling OpenAI model with:', {
       model: MODEL,
-      isReasoning: IS_REASONING,
       options: modelOptions,
       systemPromptLength: systemPrompt.length,
       userPromptLength: userPrompt.length,
@@ -286,7 +284,7 @@ ${context}
 
     let result;
     try {
-      console.log('[CHAT] start', { model: MODEL, isReasoning: IS_REASONING });
+      console.log('[CHAT] start', { model: MODEL });
       result = await streamText({
         model: openai(MODEL),
         messages: [
@@ -294,7 +292,7 @@ ${context}
           ...previousMessages,
           { role: 'user', content: userPrompt },
         ],
-        ...modelOptions, // Reasoning 모델이면 옵션 없음
+        ...modelOptions, // temperature, maxTokens 사용
       });
       console.log('[CHAT] StreamText result created successfully');
     } catch (error) {

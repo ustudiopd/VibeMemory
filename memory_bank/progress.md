@@ -1,5 +1,16 @@
 # 완료된 작업 내역 (Progress)
 
+## [2025-01-XX] - GPT-4.1-mini로 롤백 및 max_tokens 제한 복원
+- **모델 롤백**: 
+  - `gpt-5-mini` → `gpt-4.1-mini`로 모든 API 엔드포인트 변경
+  - Reasoning 모델 분기 처리 제거 (일반 모델이므로)
+- **max_tokens 제한 복원**:
+  - 모든 API에서 `maxTokens` 옵션 복원 (2000-3000 토큰)
+  - `temperature` 옵션 사용 (0.3-0.7)
+  - `lib/model-utils.ts`에서 Reasoning 모델 감지 로직 제거
+- **에러 메시지 업데이트**:
+  - 모든 에러 메시지에서 모델명 변경 (GPT-5-mini → GPT-4.1-mini)
+
 ## [2025-01-XX] - 아이디어 캔버스 파일 미리보기 기능 추가
 - **파일 미리보기 API 구현**:
   - `GET /api/projects/[id]/idea/files/[fileId]` 엔드포인트 생성
