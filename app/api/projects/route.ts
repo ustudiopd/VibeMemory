@@ -51,28 +51,49 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      // project_overview를 각 프로젝트에 추가
-      const projectsWithOverview = (projectsDirect || []).map((project: any) => ({
-        ...project,
-        project_overview: project.project_analysis?.[0]?.project_overview || null,
-      }));
+      // project_overview와 대표 이미지를 각 프로젝트에 추가
+      const projectsWithOverview = await Promise.all(
+        (projectsDirect || []).map(async (project: any) => {
+          // 대표 이미지 조회
+          const { data: primaryScreenshot } = await supabaseAdmin
+            .from('project_screenshots')
+            .select('id, storage_path, file_name')
+            .eq('project_id', project.id)
+            .eq('is_primary', true)
+            .is('deleted_at', null)
+            .single();
+
+          return {
+            ...project,
+            project_name: project.project_name || project.repo_name || null,
+            project_type: project.project_type || 'github',
+            project_overview: project.project_analysis?.[0]?.project_overview || null,
+            primary_screenshot: primaryScreenshot || null,
+          };
+        })
+      );
 
       return NextResponse.json({ projects: projectsWithOverview });
     }
 
-    // RPC 결과에도 project_overview와 description 추가 (RPC가 포함하지 않을 수 있음)
-    // 각 프로젝트별로 project_overview와 description 조회
+    // RPC 결과에도 project_overview, description, project_name, project_type 추가 (RPC가 포함하지 않을 수 있음)
+    // 각 프로젝트별로 누락된 필드 조회
     const projectsWithOverview = await Promise.all(
       (projects || []).map(async (project: any) => {
-        // description이 없으면 조회
+        // project_name, description, project_type이 없으면 조회
+        let projectName = project.project_name;
         let description = project.description;
-        if (!description) {
+        let projectType = project.project_type;
+        
+        if (!projectName || !description || !projectType) {
           const { data: projectData } = await supabaseAdmin
             .from('projects')
-            .select('description')
+            .select('project_name, description, project_type')
             .eq('id', project.id)
             .single();
-          description = projectData?.description || null;
+          projectName = projectName || projectData?.project_name || null;
+          description = description || projectData?.description || null;
+          projectType = projectType || projectData?.project_type || 'github';
         }
         
         // project_overview 조회
@@ -85,11 +106,23 @@ export async function GET(request: NextRequest) {
             .single();
           projectOverview = analysis?.project_overview || null;
         }
+
+        // 대표 이미지 조회
+        const { data: primaryScreenshot } = await supabaseAdmin
+          .from('project_screenshots')
+          .select('id, storage_path, file_name')
+          .eq('project_id', project.id)
+          .eq('is_primary', true)
+          .is('deleted_at', null)
+          .single();
         
         return {
           ...project,
+          project_name: projectName,
           description: description,
+          project_type: projectType,
           project_overview: projectOverview,
+          primary_screenshot: primaryScreenshot || null,
         };
       })
     );

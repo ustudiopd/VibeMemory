@@ -44,9 +44,69 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 프로젝트 이름 길이 제한 (1-100자)
+    const trimmedProjectName = project_name.trim();
+    if (trimmedProjectName.length === 0) {
+      return NextResponse.json(
+        { error: '프로젝트 이름은 공백만으로 구성될 수 없습니다.' },
+        { status: 400 }
+      );
+    }
+    if (trimmedProjectName.length > 100) {
+      return NextResponse.json(
+        { error: '프로젝트 이름은 100자 이하여야 합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 금지 문자 검증 (SQL 인젝션 방지, 특수문자 제한)
+    const forbiddenChars = /[<>'"\\]/;
+    if (forbiddenChars.test(trimmedProjectName)) {
+      return NextResponse.json(
+        { error: '프로젝트 이름에 사용할 수 없는 문자가 포함되어 있습니다. (<, >, \', ", \\, /)' },
+        { status: 400 }
+      );
+    }
+
     if (project_type !== 'idea' && project_type !== 'github') {
       return NextResponse.json(
         { error: 'project_type은 "idea" 또는 "github"여야 합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 텍스트 필드 길이 제한 (20KB = 20,000자)
+    const maxTextLength = 20000;
+    if (description && description.length > maxTextLength) {
+      return NextResponse.json(
+        { error: '프로젝트 설명은 20,000자 이하여야 합니다.' },
+        { status: 400 }
+      );
+    }
+    if (tech_spec && tech_spec.length > maxTextLength) {
+      return NextResponse.json(
+        { error: '기술 스펙은 20,000자 이하여야 합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // URL 형식 검증
+    const urlPattern = /^https?:\/\/.+/;
+    if (deployment_url && !urlPattern.test(deployment_url)) {
+      return NextResponse.json(
+        { error: '배포 URL은 유효한 HTTP/HTTPS URL이어야 합니다.' },
+        { status: 400 }
+      );
+    }
+    if (documentation_url && !urlPattern.test(documentation_url)) {
+      return NextResponse.json(
+        { error: '문서 URL은 유효한 HTTP/HTTPS URL이어야 합니다.' },
+        { status: 400 }
+      );
+    }
+    if (repository_url && !urlPattern.test(repository_url)) {
+      return NextResponse.json(
+        { error: '저장소 URL은 유효한 HTTP/HTTPS URL이어야 합니다.' },
         { status: 400 }
       );
     }
@@ -57,12 +117,12 @@ export async function POST(request: NextRequest) {
       const insertData = {
         owner_id: ownerId,
         project_type: 'idea',
-        project_name,
-        description: description || null,
-        tech_spec: tech_spec || null,
-        deployment_url: deployment_url || null,
-        documentation_url: documentation_url || null,
-        repository_url: repository_url || null,
+        project_name: trimmedProjectName, // 검증된 이름 사용
+        description: description?.trim() || null,
+        tech_spec: tech_spec?.trim() || null,
+        deployment_url: deployment_url?.trim() || null,
+        documentation_url: documentation_url?.trim() || null,
+        repository_url: repository_url?.trim() || null,
         // GitHub 관련 필드는 NULL
         repo_owner: null,
         repo_name: null,
@@ -82,6 +142,23 @@ export async function POST(request: NextRequest) {
         console.error('[CREATE PROJECT] Error code:', insertError.code);
         console.error('[CREATE PROJECT] Error details:', insertError.details);
         console.error('[CREATE PROJECT] Error hint:', insertError.hint);
+        
+        // 중복 프로젝트 에러 처리 (부분 유니크 인덱스 위반)
+        if (insertError.code === '23505') { // unique_violation
+          const errorMessage = insertError.message?.includes('uq_projects_idea')
+            ? '이미 같은 이름의 프로젝트가 존재합니다. 다른 이름을 사용해주세요.'
+            : '프로젝트 생성에 실패했습니다. 중복된 프로젝트가 있을 수 있습니다.';
+          
+          return NextResponse.json(
+            { 
+              error: errorMessage,
+              details: insertError.message,
+              code: insertError.code,
+            },
+            { status: 409 } // Conflict
+          );
+        }
+        
         return NextResponse.json(
           { 
             error: '프로젝트 생성에 실패했습니다.', 

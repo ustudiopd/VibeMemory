@@ -148,8 +148,27 @@ export async function POST(
     }
 
     // 파일을 버퍼로 변환
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    let arrayBuffer: ArrayBuffer;
+    let buffer: Buffer;
+    
+    try {
+      arrayBuffer = await file.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+      console.log('[SCREENSHOTS] File converted to buffer:', {
+        originalSize: file.size,
+        bufferSize: buffer.length,
+        mimeType: file.type,
+      });
+    } catch (error) {
+      console.error('[SCREENSHOTS] Error converting file to buffer:', error);
+      return NextResponse.json(
+        { 
+          error: '파일 처리에 실패했습니다.',
+          details: error instanceof Error ? error.message : 'Unknown error',
+        },
+        { status: 500 }
+      );
+    }
 
     // 이미지 크기 추출 (간단한 방법, 실제로는 sharp 등 사용 권장)
     let width: number | null = null;
@@ -157,6 +176,7 @@ export async function POST(
     // TODO: 이미지 크기 추출 로직 추가 (sharp 라이브러리 사용 권장)
 
     // DB에 스크린샷 메타데이터 생성
+    console.log('[SCREENSHOTS] Creating screenshot record in DB...');
     const { data: screenshot, error: insertError } = await supabaseAdmin
       .from('project_screenshots')
       .insert({
@@ -176,13 +196,39 @@ export async function POST(
 
     if (insertError || !screenshot) {
       console.error('[SCREENSHOTS] Error creating screenshot record:', insertError);
+      console.error('[SCREENSHOTS] Insert error details:', JSON.stringify(insertError, null, 2));
       return NextResponse.json(
-        { error: '스크린샷 메타데이터 생성에 실패했습니다.', details: insertError?.message },
+        { 
+          error: '스크린샷 메타데이터 생성에 실패했습니다.', 
+          details: insertError?.message || 'Unknown error',
+          code: insertError?.code,
+        },
         { status: 500 }
       );
     }
 
+    console.log('[SCREENSHOTS] Screenshot record created:', screenshot.id);
+
     // Storage에 업로드
+    console.log('[SCREENSHOTS] Uploading to storage...', {
+      projectId,
+      screenshotId: screenshot.id,
+      filename: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+    });
+
+    // 버킷 존재 여부를 먼저 확인
+    console.log('[SCREENSHOTS] Checking bucket before upload...');
+    const { data: buckets, error: bucketCheckError } = await supabaseAdmin.storage.listBuckets();
+    if (bucketCheckError) {
+      console.error('[SCREENSHOTS] Error checking buckets:', bucketCheckError);
+    } else {
+      console.log('[SCREENSHOTS] Available buckets:', buckets?.map(b => b.name).join(', ') || 'none');
+      const bucketExists = buckets?.some(b => b.name === 'project-screenshots') ?? false;
+      console.log('[SCREENSHOTS] project-screenshots bucket exists:', bucketExists);
+    }
+
     const storagePath = await uploadScreenshot(
       projectId,
       screenshot.id,
@@ -192,17 +238,31 @@ export async function POST(
     );
 
     if (!storagePath) {
+      console.error('[SCREENSHOTS] Storage upload failed, cleaning up DB record...');
       // 업로드 실패 시 DB 레코드 삭제
       await supabaseAdmin
         .from('project_screenshots')
         .delete()
         .eq('id', screenshot.id);
       
+      // 버킷 상태 재확인
+      const { data: finalBuckets } = await supabaseAdmin.storage.listBuckets();
+      const finalBucketExists = finalBuckets?.some(b => b.name === 'project-screenshots') ?? false;
+      
       return NextResponse.json(
-        { error: '스크린샷 업로드에 실패했습니다.' },
+        { 
+          error: '스크린샷 업로드에 실패했습니다.',
+          details: finalBucketExists 
+            ? '버킷은 존재하지만 업로드에 실패했습니다. 서버 로그를 확인해주세요.'
+            : `Storage 버킷('project-screenshots')이 존재하지 않습니다. Supabase Dashboard에서 버킷을 생성해주세요: Storage > Buckets > New bucket`,
+          bucketExists: finalBucketExists,
+          availableBuckets: finalBuckets?.map(b => b.name) || [],
+        },
         { status: 500 }
       );
     }
+
+    console.log('[SCREENSHOTS] Storage upload successful:', storagePath);
 
     // Storage 경로 업데이트
     const { data: updatedScreenshot, error: updateError } = await supabaseAdmin

@@ -13,6 +13,7 @@ interface Screenshot {
   width: number | null;
   height: number | null;
   position: number;
+  is_primary: boolean;
   created_at: string;
 }
 
@@ -37,26 +38,36 @@ export default function ScreenshotItem({
   const [altValue, setAltValue] = useState(screenshot.alt_text || '');
 
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   // Signed URL 가져오기
   useEffect(() => {
     const fetchImageUrl = async () => {
+      if (!screenshot.storage_path) {
+        setImageError(true);
+        return;
+      }
+
       try {
+        setImageError(false);
         const response = await fetch(
           `/api/projects/${projectId}/screenshots/${screenshot.id}/url`
         );
         const data = await response.json();
         if (response.ok && data.url) {
           setImageUrl(data.url);
+        } else {
+          console.error('Error fetching image URL:', data.error);
+          setImageError(true);
         }
       } catch (err) {
         console.error('Error fetching image URL:', err);
+        setImageError(true);
       }
     };
 
-    if (screenshot.storage_path) {
-      fetchImageUrl();
-    }
+    fetchImageUrl();
   }, [projectId, screenshot.id, screenshot.storage_path]);
 
   const handleCaptionSave = () => {
@@ -73,30 +84,66 @@ export default function ScreenshotItem({
     setEditingAlt(false);
   };
 
+  const handleTogglePrimary = async (e: React.MouseEvent) => {
+    e.stopPropagation(); // 이미지 클릭 이벤트 방지
+    const newIsPrimary = !screenshot.is_primary;
+    onUpdate(screenshot.id, { is_primary: newIsPrimary });
+  };
+
   return (
     <>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
         {/* 이미지 */}
         <div
-          className="aspect-[4/3] bg-gray-100 cursor-pointer relative group"
+          className="aspect-[4/3] bg-gray-100 cursor-pointer relative group overflow-hidden"
           onClick={() => setShowModal(true)}
         >
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={screenshot.alt_text || screenshot.file_name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400">
-              이미지 로드 실패
-            </div>
-          )}
-          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-opacity flex items-center justify-center">
-            <span className="text-white opacity-0 group-hover:opacity-100 text-sm font-medium">
-              클릭하여 확대
+          {/* 배경색을 항상 밝게 유지 - 이미지 뒤에 항상 표시 */}
+          <div className="absolute inset-0 bg-gray-100 z-0"></div>
+          
+          {/* 대표 이미지 별표시 */}
+          <button
+            onClick={handleTogglePrimary}
+            className="absolute top-2 right-2 z-30 p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
+            title={screenshot.is_primary ? '대표 이미지 해제' : '대표 이미지로 설정'}
+          >
+            <span className={`text-xl ${screenshot.is_primary ? 'text-yellow-400' : 'text-gray-300'}`}>
+              ⭐
             </span>
-          </div>
+          </button>
+          
+          {imageError || !imageUrl ? (
+            <div className="w-full h-full flex items-center justify-center bg-gray-100 relative z-10">
+              <div className="text-gray-400 text-sm">
+                {imageError ? '이미지 로드 실패' : '로딩 중...'}
+              </div>
+            </div>
+          ) : (
+            <>
+              <img
+                key={imageUrl}
+                src={imageUrl}
+                alt={screenshot.alt_text || screenshot.file_name}
+                className="w-full h-full object-cover relative z-10"
+                loading="lazy"
+                decoding="async"
+                onLoad={() => {
+                  setImageLoaded(true);
+                  setImageError(false);
+                }}
+                onError={(e) => {
+                  console.error('Image load error:', e);
+                  setImageError(true);
+                }}
+              />
+              {/* 호버 오버레이 - opacity-0 기본, hover 시에만 표시 */}
+              <div className="absolute inset-0 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 flex items-center justify-center">
+                <span className="text-white opacity-0 group-hover:opacity-100 text-sm font-medium">
+                  클릭하여 확대
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* 캡션 및 액션 */}
@@ -207,17 +254,31 @@ export default function ScreenshotItem({
                 />
               </svg>
             </button>
-            {imageUrl && (
-              <img
-                src={imageUrl}
-                alt={screenshot.alt_text || screenshot.file_name}
-                className="max-w-full max-h-[90vh] object-contain rounded-lg"
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-            {screenshot.caption && (
-              <div className="mt-4 text-white text-center">
-                <p className="text-lg">{screenshot.caption}</p>
+            {imageError || !imageUrl ? (
+              <div className="bg-white rounded-lg p-8 text-center">
+                <p className="text-gray-600">이미지를 불러올 수 없습니다.</p>
+              </div>
+            ) : imageUrl ? (
+              <>
+                <img
+                  src={imageUrl}
+                  alt={screenshot.alt_text || screenshot.file_name}
+                  className="max-w-full max-h-[90vh] object-contain rounded-lg bg-white"
+                  onClick={(e) => e.stopPropagation()}
+                  onError={(e) => {
+                    console.error('Modal image load error:', e);
+                    setImageError(true);
+                  }}
+                />
+                {screenshot.caption && (
+                  <div className="mt-4 text-white text-center">
+                    <p className="text-lg">{screenshot.caption}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="bg-white rounded-lg p-8 text-center">
+                <p className="text-gray-600">로딩 중...</p>
               </div>
             )}
           </div>

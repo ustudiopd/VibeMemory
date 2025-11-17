@@ -20,8 +20,49 @@ export default function CreateProjectPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.project_name.trim()) {
+    // 클라이언트 측 유효성 검사
+    const trimmedProjectName = formData.project_name.trim();
+    
+    if (!trimmedProjectName) {
       setError('프로젝트 이름은 필수입니다.');
+      return;
+    }
+    
+    if (trimmedProjectName.length > 100) {
+      setError('프로젝트 이름은 100자 이하여야 합니다.');
+      return;
+    }
+    
+    // 금지 문자 검증
+    const forbiddenChars = /[<>'"\\]/;
+    if (forbiddenChars.test(trimmedProjectName)) {
+      setError('프로젝트 이름에 사용할 수 없는 문자가 포함되어 있습니다. (<, >, \', ", \\, /)');
+      return;
+    }
+    
+    // 텍스트 필드 길이 제한 (20KB = 20,000자)
+    const maxTextLength = 20000;
+    if (formData.description && formData.description.length > maxTextLength) {
+      setError('프로젝트 설명은 20,000자 이하여야 합니다.');
+      return;
+    }
+    if (formData.tech_spec && formData.tech_spec.length > maxTextLength) {
+      setError('기술 스펙은 20,000자 이하여야 합니다.');
+      return;
+    }
+    
+    // URL 형식 검증
+    const urlPattern = /^https?:\/\/.+/;
+    if (formData.deployment_url && !urlPattern.test(formData.deployment_url)) {
+      setError('배포 URL은 유효한 HTTP/HTTPS URL이어야 합니다.');
+      return;
+    }
+    if (formData.documentation_url && !urlPattern.test(formData.documentation_url)) {
+      setError('문서 URL은 유효한 HTTP/HTTPS URL이어야 합니다.');
+      return;
+    }
+    if (formData.repository_url && !urlPattern.test(formData.repository_url)) {
+      setError('저장소 URL은 유효한 HTTP/HTTPS URL이어야 합니다.');
       return;
     }
 
@@ -36,7 +77,12 @@ export default function CreateProjectPage() {
         },
         body: JSON.stringify({
           project_type: 'idea',
-          ...formData,
+          project_name: trimmedProjectName,
+          description: formData.description.trim() || undefined,
+          tech_spec: formData.tech_spec.trim() || undefined,
+          deployment_url: formData.deployment_url.trim() || undefined,
+          documentation_url: formData.documentation_url.trim() || undefined,
+          repository_url: formData.repository_url.trim() || undefined,
         }),
       });
 
@@ -45,6 +91,13 @@ export default function CreateProjectPage() {
       if (!response.ok) {
         const errorMessage = data.error || '프로젝트 생성에 실패했습니다.';
         const errorDetails = data.details ? ` (${data.details})` : '';
+        
+        // 409 Conflict (중복 프로젝트) 에러 처리
+        if (response.status === 409) {
+          setError(errorMessage);
+          return;
+        }
+        
         throw new Error(`${errorMessage}${errorDetails}`);
       }
 
@@ -102,9 +155,13 @@ export default function CreateProjectPage() {
                 value={formData.project_name}
                 onChange={handleChange}
                 required
+                maxLength={100}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="예: 나만의 할일 관리 앱"
               />
+              <p className="mt-1 text-sm text-gray-500">
+                {formData.project_name.length}/100자
+              </p>
             </div>
 
             <div>

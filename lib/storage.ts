@@ -169,50 +169,98 @@ let screenshotBucketChecked = false;
 let screenshotBucketExists = false;
 
 /**
+ * 스크린샷 버킷 캐시 초기화 (디버깅용)
+ */
+export function resetScreenshotBucketCache() {
+  screenshotBucketChecked = false;
+  screenshotBucketExists = false;
+  console.log('[STORAGE] Screenshot bucket cache reset');
+}
+
+/**
  * 스크린샷 버킷이 존재하는지 확인하고 없으면 생성
+ * 캐시를 사용하되, 버킷이 없을 때는 항상 다시 확인합니다.
  */
 async function ensureScreenshotBucketExists(): Promise<boolean> {
-  if (screenshotBucketChecked) {
-    return screenshotBucketExists;
+  // 캐시가 있고 버킷이 존재한다고 확인된 경우에만 캐시 사용
+  if (screenshotBucketChecked && screenshotBucketExists) {
+    return true;
   }
 
   try {
+    console.log(`[STORAGE] Checking if bucket exists: ${SCREENSHOT_BUCKET_NAME}`);
     const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets();
     
     if (listError) {
       console.error('[STORAGE] Error listing buckets:', listError);
-      screenshotBucketChecked = true;
-      screenshotBucketExists = false;
+      console.error('[STORAGE] Error details:', JSON.stringify(listError, null, 2));
+      console.error('[STORAGE] Error message:', listError.message);
+      // 에러가 발생해도 캐시하지 않고 다음에 다시 시도
       return false;
     }
     
-    screenshotBucketExists = buckets?.some(bucket => bucket.name === SCREENSHOT_BUCKET_NAME) ?? false;
-    
-    if (!screenshotBucketExists) {
-      console.log(`[STORAGE] Creating bucket: ${SCREENSHOT_BUCKET_NAME}`);
-      const { data, error: createError } = await supabaseAdmin.storage.createBucket(SCREENSHOT_BUCKET_NAME, {
-        public: false, // 비공개 버킷
-        fileSizeLimit: 10485760, // 10MB 제한
-        allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+    console.log(`[STORAGE] Total buckets found: ${buckets?.length || 0}`);
+    if (buckets && buckets.length > 0) {
+      console.log(`[STORAGE] Bucket names:`, buckets.map(b => b.name).join(', '));
+      console.log(`[STORAGE] Looking for bucket: "${SCREENSHOT_BUCKET_NAME}"`);
+      buckets.forEach(bucket => {
+        console.log(`[STORAGE] - Comparing: "${bucket.name}" === "${SCREENSHOT_BUCKET_NAME}" ? ${bucket.name === SCREENSHOT_BUCKET_NAME}`);
       });
-      
-      if (createError) {
-        console.error(`[STORAGE] Error creating bucket:`, createError);
-        screenshotBucketChecked = true;
-        screenshotBucketExists = false;
-        return false;
-      }
-      
-      console.log(`[STORAGE] Bucket created: ${SCREENSHOT_BUCKET_NAME}`);
-      screenshotBucketExists = true;
+    } else {
+      console.log(`[STORAGE] No buckets found in list`);
     }
     
+    screenshotBucketExists = buckets?.some(bucket => bucket.name === SCREENSHOT_BUCKET_NAME) ?? false;
+    console.log(`[STORAGE] Bucket ${SCREENSHOT_BUCKET_NAME} exists: ${screenshotBucketExists}`);
+    
+    // 버킷이 존재하는데도 찾지 못한 경우, 직접 확인
+    if (!screenshotBucketExists && buckets && buckets.length > 0) {
+      const foundBucket = buckets.find(b => b.name === SCREENSHOT_BUCKET_NAME || b.id === SCREENSHOT_BUCKET_NAME);
+      if (foundBucket) {
+        console.log(`[STORAGE] Found bucket by id or name:`, foundBucket);
+        screenshotBucketExists = true;
+      }
+    }
+    
+    if (screenshotBucketExists) {
+      // 버킷이 존재하면 캐시하고 true 반환
+      screenshotBucketChecked = true;
+      return true;
+    }
+    
+    // 버킷이 없으면 생성 시도
+    console.log(`[STORAGE] Bucket not found, attempting to create: ${SCREENSHOT_BUCKET_NAME}`);
+    const { data: createData, error: createError } = await supabaseAdmin.storage.createBucket(SCREENSHOT_BUCKET_NAME, {
+      public: false, // 비공개 버킷
+      fileSizeLimit: 10485760, // 10MB 제한
+      allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+    });
+    
+    if (createError) {
+      console.error(`[STORAGE] Error creating bucket:`, createError);
+      console.error(`[STORAGE] Error details:`, JSON.stringify(createError, null, 2));
+      console.error(`[STORAGE] Error message:`, createError.message);
+      
+      // 버킷이 이미 존재하는 경우 (다른 프로세스에서 생성했을 수 있음)
+      if (createError.message?.includes('already exists')) {
+        console.log(`[STORAGE] Bucket already exists (from another process), marking as exists`);
+        screenshotBucketExists = true;
+        screenshotBucketChecked = true;
+        return true;
+      }
+      
+      // 생성 실패 시에도 캐시하지 않음 (다음에 다시 시도 가능)
+      return false;
+    }
+    
+    console.log(`[STORAGE] Bucket created successfully: ${SCREENSHOT_BUCKET_NAME}`, createData);
+    screenshotBucketExists = true;
     screenshotBucketChecked = true;
-    return screenshotBucketExists;
+    return true;
   } catch (error) {
     console.error('[STORAGE] Exception ensuring screenshot bucket exists:', error);
-    screenshotBucketChecked = true;
-    screenshotBucketExists = false;
+    console.error('[STORAGE] Exception details:', error instanceof Error ? error.stack : String(error));
+    // 예외 발생 시에도 캐시하지 않음
     return false;
   }
 }
@@ -226,6 +274,27 @@ async function ensureScreenshotBucketExists(): Promise<boolean> {
  * @param mimeType MIME 타입
  * @returns Storage 경로 또는 null
  */
+/**
+ * 파일명을 안전한 형식으로 변환
+ * Supabase Storage는 경로에 특수문자나 한글을 허용하지 않으므로
+ * 파일명을 UUID + 확장자 형식으로 변환하거나, 안전한 문자만 사용
+ */
+function sanitizeFilename(filename: string): string {
+  // 파일 확장자 추출
+  const lastDotIndex = filename.lastIndexOf('.');
+  const ext = lastDotIndex > 0 ? filename.substring(lastDotIndex).toLowerCase() : '';
+  
+  // 타임스탬프 기반 안전한 파일명 생성
+  // 형식: timestamp_random.ext
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 9);
+  
+  // 확장자가 있으면 유지, 없으면 기본값
+  const safeExt = ext || '.png';
+  
+  return `${timestamp}_${random}${safeExt}`;
+}
+
 export async function uploadScreenshot(
   projectId: string,
   screenshotId: string,
@@ -234,14 +303,37 @@ export async function uploadScreenshot(
   mimeType: string
 ): Promise<string | null> {
   try {
+    console.log(`[STORAGE] Starting screenshot upload:`, {
+      projectId,
+      screenshotId,
+      filename,
+      mimeType,
+      bufferSize: fileBuffer instanceof Buffer ? fileBuffer.length : fileBuffer.byteLength,
+    });
+
     const bucketExists = await ensureScreenshotBucketExists();
     if (!bucketExists) {
-      console.warn(`[STORAGE] Bucket ${SCREENSHOT_BUCKET_NAME} does not exist and could not be created`);
+      console.error(`[STORAGE] Bucket ${SCREENSHOT_BUCKET_NAME} does not exist and could not be created`);
+      console.error(`[STORAGE] Please create the bucket manually in Supabase Dashboard:`);
+      console.error(`[STORAGE] 1. Go to Storage > Buckets`);
+      console.error(`[STORAGE] 2. Click "New bucket"`);
+      console.error(`[STORAGE] 3. Name: ${SCREENSHOT_BUCKET_NAME}`);
+      console.error(`[STORAGE] 4. Public: false`);
+      console.error(`[STORAGE] 5. File size limit: 10MB`);
+      console.error(`[STORAGE] 6. Allowed MIME types: image/png, image/jpeg, image/webp, image/gif`);
       return null;
     }
     
-    // Storage 경로 생성: {project_id}/{screenshot_id}/{filename}
-    const storagePath = `${projectId}/${screenshotId}/${filename}`;
+    // 파일명을 안전한 형식으로 변환 (한글 및 특수문자 제거)
+    const safeFilename = sanitizeFilename(filename);
+    console.log(`[STORAGE] Original filename: ${filename}`);
+    console.log(`[STORAGE] Safe filename: ${safeFilename}`);
+    
+    // Storage 경로 생성: {project_id}/{screenshot_id}/{safe_filename}
+    // 경로의 각 세그먼트는 UUID이므로 안전함
+    const storagePath = `${projectId}/${screenshotId}/${safeFilename}`;
+    console.log(`[STORAGE] Uploading to path: ${storagePath}`);
+    console.log(`[STORAGE] Bucket name: ${SCREENSHOT_BUCKET_NAME}`);
     
     // 파일 업로드
     const { data, error } = await supabaseAdmin.storage
@@ -253,13 +345,24 @@ export async function uploadScreenshot(
 
     if (error) {
       console.error(`[STORAGE] Error uploading screenshot ${storagePath}:`, error);
+      console.error(`[STORAGE] Error details:`, JSON.stringify(error, null, 2));
+      console.error(`[STORAGE] Error message:`, error.message);
+      
+      // 버킷이 없다는 에러인 경우 캐시 초기화
+      if (error.message?.includes('Bucket not found') || error.message?.includes('does not exist')) {
+        console.log(`[STORAGE] Bucket not found error, resetting cache`);
+        screenshotBucketChecked = false;
+        screenshotBucketExists = false;
+      }
+      
       return null;
     }
 
-    console.log(`[STORAGE] Uploaded screenshot to ${storagePath}`);
+    console.log(`[STORAGE] Successfully uploaded screenshot to ${storagePath}`);
     return storagePath;
   } catch (error) {
     console.error(`[STORAGE] Exception uploading screenshot:`, error);
+    console.error(`[STORAGE] Exception details:`, error instanceof Error ? error.stack : String(error));
     return null;
   }
 }

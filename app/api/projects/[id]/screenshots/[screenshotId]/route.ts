@@ -67,6 +67,20 @@ export async function PATCH(
     if (body.width !== undefined) updateData.width = body.width;
     if (body.height !== undefined) updateData.height = body.height;
 
+    // is_primary 업데이트 처리
+    if (body.is_primary !== undefined) {
+      if (body.is_primary === true) {
+        // 대표 이미지로 설정하는 경우, 같은 프로젝트의 다른 스크린샷은 모두 false로 변경
+        await supabaseAdmin
+          .from('project_screenshots')
+          .update({ is_primary: false, updated_at: new Date().toISOString() })
+          .eq('project_id', projectId)
+          .neq('id', screenshotId)
+          .is('deleted_at', null);
+      }
+      updateData.is_primary = body.is_primary;
+    }
+
     // 업데이트
     const { data: updatedScreenshot, error: updateError } = await supabaseAdmin
       .from('project_screenshots')

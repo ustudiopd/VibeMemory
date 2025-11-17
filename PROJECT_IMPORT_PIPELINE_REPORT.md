@@ -568,3 +568,5 @@ export async function POST(request: NextRequest, { params }) {
 **작성자**: AI Assistant  
 **버전**: 1.0
 
+
+

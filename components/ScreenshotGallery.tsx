@@ -13,6 +13,7 @@ interface Screenshot {
   width: number | null;
   height: number | null;
   position: number;
+  is_primary: boolean;
   created_at: string;
 }
 
@@ -58,23 +59,25 @@ export default function ScreenshotGallery({ projectId }: ScreenshotGalleryProps)
     setError(null);
 
     try {
-      const uploadPromises = Array.from(files).map(async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
+          const uploadPromises = Array.from(files).map(async (file) => {
+            const formData = new FormData();
+            formData.append('file', file);
 
-        const response = await fetch(`/api/projects/${projectId}/screenshots`, {
-          method: 'POST',
-          body: formData,
-        });
+            const response = await fetch(`/api/projects/${projectId}/screenshots`, {
+              method: 'POST',
+              body: formData,
+            });
 
-        const data = await response.json();
+            const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error(data.error || '업로드에 실패했습니다.');
-        }
+            if (!response.ok) {
+              const errorMessage = data.error || '업로드에 실패했습니다.';
+              const errorDetails = data.details ? ` (${data.details})` : '';
+              throw new Error(`${errorMessage}${errorDetails}`);
+            }
 
-        return data.screenshot;
-      });
+            return data.screenshot;
+          });
 
       await Promise.all(uploadPromises);
       await fetchScreenshots(); // 목록 새로고침

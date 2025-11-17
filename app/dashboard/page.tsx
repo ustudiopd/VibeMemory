@@ -1,7 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import ProjectCard from '@/components/ProjectCard';
+
+type SortOption = 'updated_desc' | 'updated_asc' | 'name_asc' | 'name_desc' | 'created_desc' | 'created_asc';
+type FilterOption = 'all' | 'github' | 'idea';
 
 export default function DashboardPage() {
   const [projects, setProjects] = useState<any[]>([]);
@@ -9,12 +13,60 @@ export default function DashboardPage() {
   const [systemUser, setSystemUser] = useState<{ name?: string; email?: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOption, setSortOption] = useState<SortOption>('updated_desc');
+  const [filterOption, setFilterOption] = useState<FilterOption>('all');
 
   useEffect(() => {
     // 로그인 없이 바로 프로젝트 로드
     fetchProjects();
     fetchSystemUser();
   }, []);
+
+  // 필터링 및 정렬된 프로젝트 목록
+  const filteredAndSortedProjects = useMemo(() => {
+    let filtered = projects;
+
+    // 검색 필터
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((project) => {
+        const name = (project.project_name || project.repo_name || '').toLowerCase();
+        const description = (project.description || '').toLowerCase();
+        return name.includes(query) || description.includes(query);
+      });
+    }
+
+    // 타입 필터
+    if (filterOption !== 'all') {
+      filtered = filtered.filter((project) => {
+        const projectType = project.project_type || 'github';
+        return projectType === filterOption;
+      });
+    }
+
+    // 정렬
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortOption) {
+        case 'updated_desc':
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        case 'updated_asc':
+          return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+        case 'created_desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'created_asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case 'name_asc':
+          return (a.project_name || a.repo_name || '').localeCompare(b.project_name || b.repo_name || '', 'ko');
+        case 'name_desc':
+          return (b.project_name || b.repo_name || '').localeCompare(a.project_name || a.repo_name || '', 'ko');
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [projects, searchQuery, sortOption, filterOption]);
 
   const fetchSystemUser = async () => {
     try {
@@ -122,7 +174,8 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="mb-4 flex items-center gap-3">
+        <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex items-center gap-3 flex-1">
             <Link
               href="/dashboard/import"
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-slate-600 hover:bg-slate-700 active:bg-slate-800 transition-colors min-h-[44px] touch-manipulation"
@@ -137,6 +190,68 @@ export default function DashboardPage() {
             </Link>
           </div>
 
+          {/* 검색, 필터, 정렬 */}
+          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-3">
+            {/* 검색 */}
+            <div className="relative flex-1 sm:w-64">
+              <input
+                type="text"
+                placeholder="프로젝트 검색..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+              />
+              <svg
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+            </div>
+
+            {/* 필터 */}
+            <select
+              value={filterOption}
+              onChange={(e) => setFilterOption(e.target.value as FilterOption)}
+              className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent bg-white"
+            >
+              <option value="all">전체</option>
+              <option value="github">GitHub</option>
+              <option value="idea">아이디어</option>
+            </select>
+
+            {/* 정렬 */}
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value as SortOption)}
+              className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent bg-white"
+            >
+              <option value="updated_desc">최근 업데이트순</option>
+              <option value="updated_asc">오래된 업데이트순</option>
+              <option value="created_desc">최근 생성순</option>
+              <option value="created_asc">오래된 생성순</option>
+              <option value="name_asc">이름순 (가나다)</option>
+              <option value="name_desc">이름순 (역순)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* 검색 결과 카운트 */}
+        {searchQuery || filterOption !== 'all' ? (
+          <div className="mb-4 text-sm text-gray-600">
+            총 {filteredAndSortedProjects.length}개의 프로젝트
+            {searchQuery && ` (검색: "${searchQuery}")`}
+            {filterOption !== 'all' && ` (필터: ${filterOption === 'github' ? 'GitHub' : '아이디어'})`}
+          </div>
+        ) : null}
+
           {projects.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500">아직 가져온 프로젝트가 없습니다.</p>
@@ -147,57 +262,23 @@ export default function DashboardPage() {
                 첫 프로젝트 가져오기 →
               </Link>
             </div>
+          ) : filteredAndSortedProjects.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">
+                {searchQuery || filterOption !== 'all'
+                  ? '검색 결과가 없습니다.'
+                  : '프로젝트가 없습니다. 프로젝트를 가져오거나 만들어보세요.'}
+              </p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {projects.map((project) => (
-                <div
+              {filteredAndSortedProjects.map((project) => (
+                <ProjectCard
                   key={project.id}
-                  className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow relative cursor-pointer"
-                  onClick={(e) => {
-                    // 삭제 버튼 클릭 시에는 카드 클릭 이벤트 무시
-                    if ((e.target as HTMLElement).closest('button')) {
-                      return;
-                    }
-                    window.location.href = `/dashboard/projects/${project.id}`;
-                  }}
-                >
-                  {/* 프로젝트명과 삭제 버튼 */}
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900 flex-1 pr-2">
-                      {project.project_name || project.repo_name}
-                    </h3>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(project.id);
-                      }}
-                      disabled={deletingId === project.id}
-                      className="text-sm text-red-600 hover:text-red-800 active:text-red-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed px-2 py-1 touch-manipulation flex-shrink-0"
-                    >
-                      {deletingId === project.id ? '삭제 중...' : '삭제'}
-                    </button>
-                  </div>
-
-                  {/* 최근 업데이트 날짜 */}
-                  {project.updated_at && (
-                    <p className="text-xs text-gray-500 mb-2">
-                      {new Date(project.updated_at).toLocaleDateString('ko-KR', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                    </p>
-                  )}
-
-                  {/* 프로젝트 소개 (프로젝트 개요 페이지의 "프로젝트 소개" 섹션 내용만 표시) */}
-                  {project.description && (
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-700 line-clamp-3">
-                        {project.description}
-                      </p>
-                    </div>
-                  )}
-                </div>
+                  project={project}
+                  onDelete={handleDeleteClick}
+                  deletingId={deletingId}
+                />
               ))}
             </div>
           )}
