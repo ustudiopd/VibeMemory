@@ -829,7 +829,7 @@ export default function ProjectDetailPage() {
                         value={editData.tech_spec}
                         onChange={(e) => setEditData({ ...editData, tech_spec: e.target.value })}
                         rows={8}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="사용된 기술 스택, 프레임워크, 라이브러리 등을 입력하세요&#10;예: Next.js 15, React 18, TypeScript, Supabase, Tailwind CSS"
                       />
                       <p className="mt-2 text-xs text-gray-500">
@@ -1037,7 +1037,7 @@ export default function ProjectDetailPage() {
                         {expandedSections.techSpec && (
                           <div className="px-4 md:px-6 pb-4 md:pb-6 border-t border-gray-200">
                             <div
-                              className="prose prose-lg max-w-none text-gray-700 font-mono text-sm whitespace-pre-wrap mt-4"
+                              className="prose prose-lg max-w-none text-gray-700 whitespace-pre-wrap mt-4"
                               dangerouslySetInnerHTML={{ __html: formatMarkdown(project.tech_spec) }}
                             />
                           </div>

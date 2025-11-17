@@ -189,7 +189,7 @@ export default function CreateProjectPage() {
                 value={formData.tech_spec}
                 onChange={handleChange}
                 rows={5}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="사용할 기술 스택, 프레임워크, 라이브러리 등을 입력하세요"
               />
             </div>
