@@ -265,6 +265,14 @@ ${context}
     }
 
     // 5. LLM 스트리밍 호출
+    console.log('[CHAT] Calling GPT-5-mini with:', {
+      model: MODEL,
+      systemPromptLength: systemPrompt.length,
+      userPromptLength: userPrompt.length,
+      previousMessagesCount: previousMessages.length,
+      totalMessagesCount: previousMessages.length + 2,
+    });
+
     const result = await streamText({
       model: openai(MODEL),
       messages: [
@@ -274,6 +282,8 @@ ${context}
       ],
       temperature: 0.7,
     });
+
+    console.log('[CHAT] StreamText result created, starting to read stream...');
 
     // 6. SSE 스트림 생성
     const encoder = new TextEncoder();
@@ -287,7 +297,13 @@ ${context}
           // 첫 토큰 직후 sources 이벤트 발행
           let sourcesSent = false;
 
+          let chunkCount = 0;
           for await (const chunk of result.textStream) {
+            chunkCount++;
+            if (chunkCount === 1) {
+              console.log('[CHAT] First chunk received, length:', chunk?.length || 0);
+            }
+
             if (!sourcesSent && chunk) {
               // sources 이벤트 발행
               const sourcesEvent = `event: sources\ndata: ${JSON.stringify(sources)}\n\n`;
@@ -305,6 +321,8 @@ ${context}
               controller.enqueue(encoder.encode(tokenEvent));
             }
           }
+
+          console.log('[CHAT] Stream completed. Total chunks:', chunkCount, 'Content length:', fullContent.length);
 
           // GPT-5-mini 빈 응답 체크
           if (!fullContent || fullContent.trim().length === 0) {
