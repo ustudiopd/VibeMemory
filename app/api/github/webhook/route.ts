@@ -123,17 +123,8 @@ export async function POST(request: NextRequest) {
     }
 
     // CLAIM: Prevent concurrent processing
-    // 먼저 만료된 잠금 정리
-    const { error: cleanupError } = await supabaseAdmin
-      .from('job_locks')
-      .delete()
-      .eq('job_name', jobName)
-      .lt('expires_at', new Date().toISOString());
-
-    if (cleanupError) {
-      console.warn(`[WEBHOOK] Error cleaning up expired locks:`, cleanupError);
-    }
-
+    // claim_job RPC가 만료된 잠금을 자동으로 처리하므로 직접 정리 불필요
+    
     // 잠금 획득 시도 (최대 3번 재시도)
     let claimResult: boolean | null = false;
     let claimError: any = null;
@@ -153,12 +144,8 @@ export async function POST(request: NextRequest) {
       }
       
       if (attempt < 2) {
-        // 재시도 전에 잠금 다시 확인 및 정리
+        // 재시도 전에 잠시 대기
         console.log(`[WEBHOOK] claim_job failed (attempt ${attempt + 1}), retrying...`);
-        await supabaseAdmin
-          .from('job_locks')
-          .delete()
-          .eq('job_name', jobName);
         await new Promise(resolve => setTimeout(resolve, 200));
       }
     }
@@ -396,27 +383,35 @@ export async function POST(request: NextRequest) {
       console.log(`[WEBHOOK] Skipping AI analysis (coreFilesModified: ${coreFilesModified}, analysisOutdated: ${analysisOutdated}, filesModified: ${modifiedFiles.length + addedFiles.length})`);
     }
 
-    // 웹훅 처리 완료 후 잠금 해제
-    await supabaseAdmin
-      .from('job_locks')
-      .delete()
-      .eq('job_name', jobName);
+    // 웹훅 처리 완료 후 잠금 해제 (에러 발생해도 무시)
+    try {
+      // RPC 함수를 사용하여 잠금 해제 시도 (없으면 에러 무시)
+      await supabaseAdmin.rpc('force_claim_job', {
+        p_job_name: jobName,
+        p_duration: '0 seconds', // 즉시 만료되도록 설정
+      });
+    } catch (error) {
+      // 잠금 해제 실패해도 무시 (이미 처리 완료)
+      console.log(`[WEBHOOK] Lock cleanup attempted (may already be released)`);
+    }
 
     console.log(`[WEBHOOK] Successfully processed webhook for ${repoOwner}/${repoName}`);
     return NextResponse.json({ message: 'Webhook processed successfully' }, { status: 200 });
   } catch (error) {
     console.error('[WEBHOOK] Error processing webhook:', error);
     
-    // 에러 발생 시에도 잠금 해제 시도
+    // 에러 발생 시에도 잠금 해제 시도 (에러 발생해도 무시)
     if (jobName) {
       try {
-        await supabaseAdmin
-          .from('job_locks')
-          .delete()
-          .eq('job_name', jobName);
-        console.log(`[WEBHOOK] Lock cleaned up after error for ${jobName}`);
+        // RPC 함수를 사용하여 잠금 해제 시도
+        await supabaseAdmin.rpc('force_claim_job', {
+          p_job_name: jobName,
+          p_duration: '0 seconds', // 즉시 만료되도록 설정
+        });
+        console.log(`[WEBHOOK] Lock cleanup attempted after error for ${jobName}`);
       } catch (cleanupError) {
-        console.error('[WEBHOOK] Error cleaning up lock after error:', cleanupError);
+        // 잠금 해제 실패해도 무시
+        console.log(`[WEBHOOK] Lock cleanup attempted (may already be released)`);
       }
     }
     
