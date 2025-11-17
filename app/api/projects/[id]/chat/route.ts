@@ -306,6 +306,16 @@ ${context}
             }
           }
 
+          // GPT-5-mini 빈 응답 체크
+          if (!fullContent || fullContent.trim().length === 0) {
+            console.error('[CHAT] ⚠️ Empty response from GPT-5-mini. No content generated.');
+            const errorEvent = `event: error\ndata: ${JSON.stringify({ 
+              error: 'AI가 응답을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.',
+              details: 'GPT-5-mini에서 출력이 생성되지 않았습니다.'
+            })}\n\n`;
+            controller.enqueue(encoder.encode(errorEvent));
+          }
+
           // done 이벤트 발행
           const doneEvent = `event: done\ndata: {}\n\n`;
           controller.enqueue(encoder.encode(doneEvent));
@@ -320,15 +330,27 @@ ${context}
               model: MODEL,
             });
 
-            // Assistant 메시지 저장 (usage는 Promise이므로 await)
+            // Assistant 메시지 저장 (usage는 스트림 완료 후에만 사용 가능)
+            // GPT-5-mini의 경우 빈 응답 시 usage를 가져올 수 없으므로 선택적으로 처리
             try {
+              // 스트림이 완료된 후 usage 가져오기 시도
               const usage = await result.usage;
               // AI SDK v2의 LanguageModelV2Usage 타입에 맞게 속성 접근
               tokensInput = (usage as any)?.promptTokens || 0;
               tokensOutput = (usage as any)?.completionTokens || Math.ceil(tokensOutput);
             } catch (error) {
-              console.error('[CHAT] Error getting usage:', error);
-              // usage를 가져오지 못해도 계속 진행
+              // AI_NoOutputGeneratedError는 GPT-5-mini가 응답을 생성하지 않았을 때 발생
+              if (error instanceof Error && error.message.includes('No output generated')) {
+                console.warn('[CHAT] GPT-5-mini did not generate output. Using estimated tokens.');
+                // 빈 응답이면 토큰 수를 0으로 설정
+                if (!fullContent || fullContent.trim().length === 0) {
+                  tokensInput = 0;
+                  tokensOutput = 0;
+                }
+              } else {
+                console.error('[CHAT] Error getting usage:', error);
+              }
+              // usage를 가져오지 못해도 계속 진행 (추정값 사용)
             }
 
             // Assistant 메시지 저장
