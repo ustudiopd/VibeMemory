@@ -6,9 +6,10 @@ import { generateText } from 'ai';
 import { getSystemUserFromSupabase } from '@/lib/system-user';
 import { normalizeModel, getModelOptions } from '@/lib/model-utils';
 
-// Edge 런타임 + maxDuration 설정 (해결책.md 1장)
-export const runtime = 'edge';
-export const maxDuration = 60;
+// Node.js 런타임 사용 (긴 처리 시간 필요 - RAG 검색 + GPT 호출)
+// Edge 런타임은 60초 제한이 있어 타임아웃 발생 가능
+export const runtime = 'nodejs';
+export const maxDuration = 300; // 5분 (Pro 플랜 기준)
 
 const MODEL = normalizeModel(process.env.CHATGPT_MODEL);
 
@@ -122,6 +123,12 @@ export async function POST(
       .join('\n\n');
 
     // GPT API로 기술 스펙 정리
+    console.log('[TECH-SPEC] Starting GPT generation...', {
+      model: MODEL,
+      techReviewLength: techReview.length,
+      ragContextLength: ragContext.length,
+    });
+
     const systemPrompt = `당신은 프로젝트의 기술 스펙을 구조화하여 정리하는 전문가입니다.
 제공된 기술 리뷰와 코드베이스 검색 결과를 기반으로 프로젝트의 기술 스펙을 명확하고 체계적으로 정리해주세요.
 
@@ -134,10 +141,16 @@ export async function POST(
 
 각 항목은 구체적인 버전 정보와 함께 나열해주세요.`;
 
+    // 프롬프트 길이 제한 (타임아웃 방지)
+    const maxTechReviewLength = 3000; // 기술 리뷰 최대 길이
+    const truncatedTechReview = techReview.length > maxTechReviewLength
+      ? techReview.substring(0, maxTechReviewLength) + '\n\n... (내용이 길어 일부만 포함되었습니다)'
+      : techReview;
+
     const userPrompt = `다음 기술 리뷰와 코드베이스 검색 결과를 기반으로 기술 스펙을 정리해주세요.
 
 [기술 리뷰]
-${techReview}
+${truncatedTechReview}
 
 ${ragContext ? `[코드베이스 검색 결과]\n${ragContext}` : ''}
 
@@ -146,12 +159,16 @@ ${ragContext ? `[코드베이스 검색 결과]\n${ragContext}` : ''}
     // Reasoning 모델 분기 처리 (해결책.md 2장)
     const modelOptions = getModelOptions(MODEL, 0.3);
     
+    console.log('[TECH-SPEC] Calling generateText with options:', modelOptions);
+    
     const { text: techSpec } = await generateText({
       model: openai(MODEL),
       system: systemPrompt,
       prompt: userPrompt,
       ...modelOptions, // Reasoning 모델이면 옵션 없음 (일반 모델이면 temperature: 0.3)
     });
+
+    console.log('[TECH-SPEC] GPT generation completed, length:', techSpec?.length || 0);
 
     // 빈 응답 체크
     if (!techSpec || techSpec.trim().length === 0) {

@@ -297,20 +297,39 @@ export default function ProjectDetailPage() {
         },
       });
 
-      const data = await response.json();
+      // Content-Type 확인 후 JSON 파싱
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // JSON이 아닌 경우 (504 에러 등)
+        const text = await response.text();
+        throw new Error(
+          response.status === 504
+            ? '요청 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.'
+            : `서버 오류 (${response.status}): ${text.substring(0, 100)}`
+        );
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || '기술 스펙 생성에 실패했습니다.');
+        throw new Error(data.error || data.details || '기술 스펙 생성에 실패했습니다.');
       }
 
       if (data.success && data.tech_spec) {
         setEditData({ ...editData, tech_spec: data.tech_spec });
+        alert('기술 스펙이 생성되었습니다.');
       } else {
         throw new Error('기술 스펙 생성 결과가 올바르지 않습니다.');
       }
     } catch (error) {
       console.error('Error generating tech spec:', error);
-      alert(error instanceof Error ? error.message : '기술 스펙 생성에 실패했습니다.');
+      if (error instanceof SyntaxError) {
+        alert('서버 응답을 파싱할 수 없습니다. 서버가 타임아웃되었을 수 있습니다. 잠시 후 다시 시도해주세요.');
+      } else {
+        alert(error instanceof Error ? error.message : '기술 스펙 생성에 실패했습니다.');
+      }
     } finally {
       setGeneratingTechSpec(false);
     }
