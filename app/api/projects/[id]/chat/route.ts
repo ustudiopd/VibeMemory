@@ -92,10 +92,23 @@ export async function POST(
       );
 
       if (ideaSearchError) {
-        console.error('[CHAT] search_idea_project_chunks_rrf failed:', ideaSearchError);
+        console.error('[CHAT] ❌ search_idea_project_chunks_rrf failed');
+        console.error('[CHAT] Error object:', ideaSearchError);
+        console.error('[CHAT] Error message:', ideaSearchError?.message);
+        console.error('[CHAT] Error code:', ideaSearchError?.code);
+        console.error('[CHAT] Error details:', ideaSearchError?.details);
+        console.error('[CHAT] Error hint:', ideaSearchError?.hint);
+        console.error('[CHAT] Full error JSON:', JSON.stringify(ideaSearchError, Object.getOwnPropertyNames(ideaSearchError), 2));
+        console.error('[CHAT] Query params:', {
+          p_project_id: projectId,
+          p_query_text: message,
+          p_query_vec_length: queryEmbedding?.length,
+          p_limit: 8,
+        });
         searchError = ideaSearchError;
       } else {
         searchResults = ideaSearchResults || [];
+        console.log('[CHAT] ✅ RPC function returned:', searchResults?.length || 0, 'results');
       }
     } else {
       // GitHub 프로젝트: search_project_chunks_rrf 사용
@@ -144,7 +157,14 @@ export async function POST(
       hasResults: !!searchResults,
       resultCount: searchResults?.length || 0,
       hasError: !!searchError,
+      projectType: project.project_type,
     });
+    
+    if (searchResults && searchResults.length > 0) {
+      console.log('[CHAT] ✅ Found chunks from files:', searchResults.map((r: any) => r.file_path).join(', '));
+    } else {
+      console.warn('[CHAT] ⚠️ No chunks found. Make sure files are uploaded and processed.');
+    }
 
     // 3. 컨텍스트 빌드
     const context = (searchResults || [])

@@ -1,15 +1,36 @@
 # 현재 작업 상황 (Active Context)
 
 ## 1. 현재 집중하고 있는 작업  
-- **작업명**: 대표 이미지 지정 기능 및 대시보드 UI 개선
+- **작업명**: GPT-5-mini 마이그레이션 완료
 - **목표**: 
-  - 스크린샷 갤러리에서 대표 이미지 지정 기능
-  - 대시보드 프로젝트 카드에 썸네일 표시
-  - 프로젝트 카드 레이아웃 개선
+  - GPT-4.1-mini에서 GPT-5-mini로 모델 변경
+  - 빈 응답 체크 로직 추가
+  - 명세서 생성 API 로깅 개선
 - **상태**: ✅ 구현 완료
 - **다음 단계**: 테스트 및 검증
 
-## 2. 최근 완료된 작업 (2025-01-16)
+## 2. 최근 완료된 작업 (2025-01-XX)
+
+### GPT-5-mini 마이그레이션 (2025-01-XX)
+- ✅ 모든 API 엔드포인트에서 모델 이름 변경 (`gpt-4.1-mini` → `gpt-5-mini`)
+  - `app/api/projects/[id]/chat/route.ts`
+  - `app/api/chat/route.ts`
+  - `lib/analysisService.ts`
+  - `app/api/projects/[id]/tech-spec/generate/route.ts`
+  - `app/api/projects/[id]/idea/synthesize/route.ts`
+- ✅ GPT-5-mini 빈 응답 체크 로직 추가
+  - `generateText` 사용하는 모든 API에 빈 응답 검증 추가
+  - `openai.chat.completions.create` 사용하는 모든 함수에 빈 응답 검증 추가
+  - 빈 응답 시 상세 에러 로그 및 사용자 친화적 에러 메시지 반환
+- ✅ 명세서 생성 API 로깅 개선
+  - 파일 수집, 챗봇 세션 수집, GPT-5-mini 호출 등 각 단계별 로그 추가
+  - 응답 길이 및 성공 여부 로깅
+- ✅ 마이그레이션 가이드 문서 작성 (`GPT-5-mini_마이그레이션_가이드.md`)
+  - GPT-5-mini 특성 설명 (reasoning 모델)
+  - `max_completion_tokens` 파라미터 사용 시 무응답 문제 설명
+  - 해결 방법 및 마이그레이션 체크리스트 제공
+
+### 이전 작업 (2025-01-16)
 
 ### 대표 이미지 지정 기능 구현
 - ✅ `project_screenshots` 테이블에 `is_primary` 컬럼 추가

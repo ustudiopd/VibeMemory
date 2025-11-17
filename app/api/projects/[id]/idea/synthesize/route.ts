@@ -16,6 +16,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log('[SYNTHESIZE] Starting specification generation...');
     const user = await getSystemUserFromSupabase();
     if (!user) {
       return NextResponse.json(
@@ -49,11 +50,14 @@ export async function POST(
     }
 
     // 1. 아이디어 프로젝트 파일 내용 수집
+    console.log('[SYNTHESIZE] Fetching idea project files...');
     const { data: files, error: filesError } = await supabaseAdmin
       .from('idea_project_files')
       .select('id, file_name, storage_path')
       .eq('project_id', projectId)
       .is('deleted_at', null);
+    
+    console.log('[SYNTHESIZE] Found files:', files?.length || 0);
 
     if (filesError) {
       console.error('[SYNTHESIZE] Error fetching files:', filesError);
@@ -81,6 +85,7 @@ export async function POST(
     }
 
     // 2. 챗봇 대화 기록 수집
+    console.log('[SYNTHESIZE] Fetching chat sessions...');
     const { data: sessions, error: sessionsError } = await supabaseAdmin
       .from('chat_sessions')
       .select('id')
@@ -88,6 +93,8 @@ export async function POST(
       .eq('owner_id', user.id)
       .order('created_at', { ascending: false })
       .limit(10); // 최근 10개 세션
+    
+    console.log('[SYNTHESIZE] Found chat sessions:', sessions?.length || 0);
 
     const chatHistory: string[] = [];
     if (!sessionsError && sessions) {
@@ -122,6 +129,8 @@ export async function POST(
       : fullContext;
 
     // 4. AI 합성
+    console.log('[SYNTHESIZE] Generating specification with GPT-5-mini...');
+    console.log('[SYNTHESIZE] Context length:', truncatedContext.length, 'characters');
     const prompt = `다음은 사용자가 업로드한 아이디어 파일과 챗봇 대화 기록입니다. 이를 기반으로 프로젝트 명세서를 작성해주세요.
 
 ${truncatedContext}
@@ -161,6 +170,21 @@ ${truncatedContext}
       prompt: prompt,
     });
 
+    console.log('[SYNTHESIZE] GPT-5-mini response received, length:', specification?.length || 0);
+
+    // GPT-5-mini 빈 응답 체크
+    if (!specification || specification.trim().length === 0) {
+      console.error('[SYNTHESIZE] ⚠️ Empty response from GPT-5-mini. Check if max_completion_tokens parameter is used.');
+      return NextResponse.json(
+        {
+          error: 'AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.',
+          details: 'GPT-5-mini에서 응답을 생성하지 못했습니다.',
+        },
+        { status: 500 }
+      );
+    }
+
+    console.log('[SYNTHESIZE] ✅ Specification generated successfully, length:', specification.length);
     return NextResponse.json({
       success: true,
       specification: specification,

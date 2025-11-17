@@ -221,7 +221,15 @@ ${context || '(관련 문서를 찾을 수 없습니다)'}
     temperature: 0.7,
   });
 
-  return response.choices[0].message.content || '';
+  const content = response.choices[0].message.content || '';
+  
+  // GPT-5-mini 빈 응답 체크
+  if (!content || content.trim().length === 0) {
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateIdeaReview. Check if max_completion_tokens parameter is used.');
+    throw new Error('GPT-5-mini returned empty response for idea review');
+  }
+  
+  return content;
 }
 
 async function generateTechReview(context: string): Promise<string> {
@@ -245,7 +253,15 @@ ${context || '(관련 기술 문서를 찾을 수 없습니다)'}
     temperature: 0.7,
   });
 
-  return response.choices[0].message.content || '';
+  const content = response.choices[0].message.content || '';
+  
+  // GPT-5-mini 빈 응답 체크
+  if (!content || content.trim().length === 0) {
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateTechReview. Check if max_completion_tokens parameter is used.');
+    throw new Error('GPT-5-mini returned empty response for tech review');
+  }
+  
+  return content;
 }
 
 async function generatePatentReview(
@@ -282,7 +298,15 @@ ${context || '(추가 컨텍스트를 찾을 수 없습니다)'}
     temperature: 0.7,
   });
 
-  return response.choices[0].message.content || '';
+  const content = response.choices[0].message.content || '';
+  
+  // GPT-5-mini 빈 응답 체크
+  if (!content || content.trim().length === 0) {
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generatePatentReview. Check if max_completion_tokens parameter is used.');
+    throw new Error('GPT-5-mini returned empty response for patent review');
+  }
+  
+  return content;
 }
 
 export async function generateProjectSummary(context: string): Promise<string> {
@@ -320,7 +344,15 @@ ${context || '(관련 문서를 찾을 수 없습니다)'}
     temperature: 0.7,
   });
 
-  return response.choices[0].message.content || '';
+  const content = response.choices[0].message.content || '';
+  
+  // GPT-5-mini 빈 응답 체크
+  if (!content || content.trim().length === 0) {
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateProjectSummary. Check if max_completion_tokens parameter is used.');
+    throw new Error('GPT-5-mini returned empty response for project summary');
+  }
+  
+  return content;
 }
 
 export async function generateReleaseNote(commitMessages: string[]): Promise<string> {
@@ -340,6 +372,14 @@ ${commitMessages.join('\n')}
     temperature: 0.7,
   });
 
-  return response.choices[0].message.content || '';
+  const content = response.choices[0].message.content || '';
+  
+  // GPT-5-mini 빈 응답 체크
+  if (!content || content.trim().length === 0) {
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateReleaseNote. Check if max_completion_tokens parameter is used.');
+    throw new Error('GPT-5-mini returned empty response for release note');
+  }
+  
+  return content;
 }
 

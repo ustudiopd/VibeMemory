@@ -65,7 +65,19 @@ export default function IdeaNoteTab({ projectId }: IdeaNoteTabProps) {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || '업로드에 실패했습니다.');
+          // 상세 에러 정보 포함
+          const errorMessage = data.details 
+            ? `${data.error || '업로드에 실패했습니다.'}\n${data.details}`
+            : data.error || '업로드에 실패했습니다.';
+          console.error('[IDEA FILES] Upload error:', {
+            status: response.status,
+            error: data.error,
+            details: data.details,
+            code: data.code,
+            hint: data.hint,
+            fullResponse: data
+          });
+          throw new Error(errorMessage);
         }
 
         return data.file;
@@ -84,16 +96,20 @@ export default function IdeaNoteTab({ projectId }: IdeaNoteTabProps) {
   };
 
   const handleDeleteFile = async (fileId: string) => {
-    if (!confirm('이 파일을 삭제하시겠습니까?')) return;
+    if (!confirm('이 파일을 삭제하시겠습니까? 삭제된 파일의 청크도 함께 삭제됩니다.')) return;
 
     try {
-      // TODO: DELETE API 구현 필요
-      // const response = await fetch(`/api/projects/${projectId}/idea/files/${fileId}`, {
-      //   method: 'DELETE',
-      // });
-      // if (!response.ok) {
-      //   throw new Error('삭제에 실패했습니다.');
-      // }
+      const response = await fetch(`/api/projects/${projectId}/idea/files/${fileId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '삭제에 실패했습니다.');
+      }
+
+      // 파일 목록 새로고침
       await fetchFiles();
     } catch (err) {
       console.error('Error deleting file:', err);
@@ -129,7 +145,7 @@ export default function IdeaNoteTab({ projectId }: IdeaNoteTabProps) {
 
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            {error}
+            <div className="whitespace-pre-line">{error}</div>
           </div>
         )}
 

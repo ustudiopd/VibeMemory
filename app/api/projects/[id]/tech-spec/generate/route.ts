@@ -145,6 +145,18 @@ ${ragContext ? `[코드베이스 검색 결과]\n${ragContext}` : ''}
       temperature: 0.3, // 일관성 있는 출력을 위해 낮은 temperature
     });
 
+    // GPT-5-mini 빈 응답 체크
+    if (!techSpec || techSpec.trim().length === 0) {
+      console.error('[TECH-SPEC] ⚠️ Empty response from GPT-5-mini. Check if max_completion_tokens parameter is used.');
+      return NextResponse.json(
+        {
+          error: 'AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.',
+          details: 'GPT-5-mini에서 응답을 생성하지 못했습니다.',
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       tech_spec: techSpec,

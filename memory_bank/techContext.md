@@ -9,6 +9,8 @@
 - **상태 관리**: React Query (TanStack Query v5)
 - **UI 라이브러리**: Tailwind CSS, Shadcn/ui
 - **AI / 임베딩**: OpenAI API (gpt-5-mini, text-embedding-3-small)
+  - **모델**: GPT-5-mini (reasoning 모델, `max_completion_tokens` 파라미터 사용 시 주의 필요)
+  - **임베딩**: text-embedding-3-small
 - **AI 챗봇 SDK**: Vercel AI SDK
 - **GitHub 연동**: @octokit/rest (GitHub API v3)
 - **인증**: NextAuth.js (GitHub OAuth Provider)

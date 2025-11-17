@@ -2,6 +2,18 @@
 
 ## 완료된 작업
 
+### Phase 7: GPT-5-mini 마이그레이션 ✅
+- GPT-4.1-mini → GPT-5-mini 모델 변경
+- 모든 API 엔드포인트에서 모델 이름 업데이트
+- 빈 응답 체크 로직 추가 (GPT-5-mini 특성 대응)
+- 명세서 생성 API에 상세 로깅 추가
+- 변경된 파일:
+  - `app/api/projects/[id]/chat/route.ts`
+  - `app/api/chat/route.ts`
+  - `lib/analysisService.ts`
+  - `app/api/projects/[id]/tech-spec/generate/route.ts`
+  - `app/api/projects/[id]/idea/synthesize/route.ts`
+
 ### Phase 0: 프로젝트 초기화 ✅
 - Next.js 14+ 프로젝트 생성 (TypeScript, Tailwind CSS)
 - 필수 패키지 설치 완료

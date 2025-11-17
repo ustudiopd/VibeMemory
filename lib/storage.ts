@@ -284,15 +284,24 @@ function sanitizeFilename(filename: string): string {
   const lastDotIndex = filename.lastIndexOf('.');
   const ext = lastDotIndex > 0 ? filename.substring(lastDotIndex).toLowerCase() : '';
   
-  // 타임스탬프 기반 안전한 파일명 생성
-  // 형식: timestamp_random.ext
+  // Supabase Storage는 경로에 한글을 지원하지 않을 수 있으므로
+  // 영문, 숫자, 하이픈, 언더스코어만 사용하는 안전한 파일명 생성
+  // 타임스탬프 + 랜덤 문자열 + 확장자 형식 사용
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 9);
   
   // 확장자가 있으면 유지, 없으면 기본값
-  const safeExt = ext || '.png';
+  const safeExt = ext || '.txt';
   
-  return `${timestamp}_${random}${safeExt}`;
+  // 원본 파일명에서 영문/숫자만 추출하여 prefix로 사용 (최대 20자)
+  const nameWithoutExt = lastDotIndex > 0 ? filename.substring(0, lastDotIndex) : filename;
+  const alphanumericOnly = nameWithoutExt.replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
+  const prefix = alphanumericOnly ? `${alphanumericOnly}_` : '';
+  
+  // 최종 파일명: prefix + timestamp + random + extension
+  const finalName = `${prefix}${timestamp}_${random}${safeExt}`;
+  
+  return finalName;
 }
 
 export async function uploadScreenshot(
@@ -430,6 +439,7 @@ export async function ensureIdeaFilesBucketExists(): Promise<boolean> {
     
     if (listError) {
       console.error('[STORAGE] Error listing buckets:', listError);
+      console.error('[STORAGE] List error details:', JSON.stringify(listError, null, 2));
       ideaFilesBucketChecked = true;
       ideaFilesBucketExists = false;
       return false;
@@ -442,11 +452,20 @@ export async function ensureIdeaFilesBucketExists(): Promise<boolean> {
       const { data, error: createError } = await supabaseAdmin.storage.createBucket(IDEA_FILES_BUCKET_NAME, {
         public: false, // 비공개 버킷
         fileSizeLimit: 10485760, // 10MB 제한
-        allowedMimeTypes: ['text/markdown', 'text/plain'],
+        allowedMimeTypes: ['text/markdown', 'text/plain', 'text/x-markdown', 'application/x-markdown'],
       });
       
       if (createError) {
+        // 이미 존재하는 경우 성공으로 처리 (동시성 문제 해결)
+        if (createError.message?.includes('already exists') || (createError as any)?.statusCode === 409) {
+          console.log(`[STORAGE] Bucket already exists, marking as exists`);
+          ideaFilesBucketExists = true;
+          ideaFilesBucketChecked = true;
+          return true;
+        }
+        
         console.error(`[STORAGE] Error creating bucket:`, createError);
+        console.error(`[STORAGE] Create error details:`, JSON.stringify(createError, null, 2));
         ideaFilesBucketChecked = true;
         ideaFilesBucketExists = false;
         return false;
@@ -483,32 +502,114 @@ export async function uploadIdeaFile(
   mimeType: string
 ): Promise<string | null> {
   try {
+    console.log(`[STORAGE] Starting idea file upload:`, {
+      projectId,
+      fileId,
+      filename,
+      mimeType,
+      bufferSize: fileBuffer instanceof Buffer ? fileBuffer.length : fileBuffer.byteLength,
+    });
+
     const bucketExists = await ensureIdeaFilesBucketExists();
     if (!bucketExists) {
-      console.warn(`[STORAGE] Bucket ${IDEA_FILES_BUCKET_NAME} does not exist and could not be created`);
+      console.error(`[STORAGE] Bucket ${IDEA_FILES_BUCKET_NAME} does not exist and could not be created`);
+      console.error(`[STORAGE] Please create the bucket manually in Supabase Dashboard:`);
+      console.error(`[STORAGE] 1. Go to Storage > Buckets`);
+      console.error(`[STORAGE] 2. Click "New bucket"`);
+      console.error(`[STORAGE] 3. Name: ${IDEA_FILES_BUCKET_NAME}`);
+      console.error(`[STORAGE] 4. Public: false`);
+      console.error(`[STORAGE] 5. File size limit: 10MB`);
+      console.error(`[STORAGE] 6. Allowed MIME types: text/markdown, text/plain`);
       return null;
     }
     
-    // Storage 경로 생성: {project_id}/{file_id}/{filename}
-    const storagePath = `${projectId}/${fileId}/${filename}`;
+    // 파일명을 안전한 형식으로 변환 (한글 및 특수문자 처리)
+    const safeFilename = sanitizeFilename(filename);
+    console.log(`[STORAGE] Original filename: ${filename}`);
+    console.log(`[STORAGE] Safe filename: ${safeFilename}`);
+    console.log(`[STORAGE] File size: ${fileBuffer instanceof Buffer ? fileBuffer.length : fileBuffer.byteLength} bytes`);
+    console.log(`[STORAGE] MIME type: ${mimeType}`);
+    
+    // Storage 경로 생성: {project_id}/{file_id}/{safe_filename}
+    const storagePath = `${projectId}/${fileId}/${safeFilename}`;
+    console.log(`[STORAGE] Uploading to path: ${storagePath}`);
+    console.log(`[STORAGE] Bucket name: ${IDEA_FILES_BUCKET_NAME}`);
+    console.log(`[STORAGE] Full storage path length: ${storagePath.length} characters`);
     
     // 파일 업로드
-    const { data, error } = await supabaseAdmin.storage
+    let uploadResult = await supabaseAdmin.storage
       .from(IDEA_FILES_BUCKET_NAME)
       .upload(storagePath, fileBuffer, {
-        contentType: mimeType,
+        contentType: mimeType || 'text/plain',
         upsert: true,
+        cacheControl: '3600',
       });
 
+    let { data, error } = uploadResult;
+
+    // Bucket not found 에러인 경우 버킷 재확인 후 재시도
+    if (error && (error.message?.includes('Bucket not found') || error.message?.includes('does not exist') || (error as any).statusCode === 404)) {
+      console.log(`[STORAGE] Bucket not found error, resetting cache and retrying...`);
+      ideaFilesBucketChecked = false;
+      ideaFilesBucketExists = false;
+      
+      const retryBucketExists = await ensureIdeaFilesBucketExists();
+      if (retryBucketExists) {
+        console.log(`[STORAGE] Retrying upload after bucket verification...`);
+        uploadResult = await supabaseAdmin.storage
+          .from(IDEA_FILES_BUCKET_NAME)
+          .upload(storagePath, fileBuffer, {
+            contentType: mimeType || 'text/plain',
+            upsert: true,
+            cacheControl: '3600',
+          });
+        ({ data, error } = uploadResult);
+      }
+    }
+
     if (error) {
+      // 에러 객체의 모든 속성 추출
+      const errorDetails: any = {
+        message: error.message,
+        name: (error as any).name,
+        statusCode: (error as any).statusCode,
+        statusText: (error as any).statusText,
+        error: (error as any).error,
+        stack: error instanceof Error ? error.stack : undefined,
+      };
+      
+      // 에러 객체의 모든 열거 가능한 속성 추가
+      try {
+        Object.keys(error).forEach(key => {
+          if (!errorDetails[key]) {
+            errorDetails[key] = (error as any)[key];
+          }
+        });
+      } catch (e) {
+        // 무시
+      }
+      
       console.error(`[STORAGE] Error uploading idea file ${storagePath}:`, error);
+      console.error(`[STORAGE] Error details (JSON):`, JSON.stringify(errorDetails, null, 2));
+      console.error(`[STORAGE] Error message:`, error.message);
+      console.error(`[STORAGE] Error statusCode:`, (error as any).statusCode);
+      console.error(`[STORAGE] Error name:`, (error as any).name);
+      console.error(`[STORAGE] Error statusText:`, (error as any).statusText);
+      console.error(`[STORAGE] Full error object:`, error);
+      console.error(`[STORAGE] File info - size: ${fileBuffer instanceof Buffer ? fileBuffer.length : fileBuffer.byteLength}, mimeType: ${mimeType}`);
+      console.error(`[STORAGE] Storage path: ${storagePath}`);
+      console.error(`[STORAGE] Bucket name: ${IDEA_FILES_BUCKET_NAME}`);
+      console.error(`[STORAGE] Safe filename: ${safeFilename}`);
+      console.error(`[STORAGE] Original filename: ${filename}`);
+      
       return null;
     }
 
-    console.log(`[STORAGE] Uploaded idea file to ${storagePath}`);
+    console.log(`[STORAGE] Successfully uploaded idea file to ${storagePath}`, data);
     return storagePath;
   } catch (error) {
     console.error(`[STORAGE] Exception uploading idea file:`, error);
+    console.error(`[STORAGE] Exception details:`, error instanceof Error ? error.stack : String(error));
     return null;
   }
 }
