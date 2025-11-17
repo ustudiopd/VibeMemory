@@ -9,7 +9,10 @@
 - **상태 관리**: React Query (TanStack Query v5)
 - **UI 라이브러리**: Tailwind CSS, Shadcn/ui
 - **AI / 임베딩**: OpenAI API (gpt-5-mini, text-embedding-3-small)
-  - **모델**: GPT-5-mini (reasoning 모델, `max_completion_tokens` 파라미터 사용 시 주의 필요)
+  - **모델**: GPT-5-mini (reasoning 모델)
+    - Reasoning 모델 특성: `temperature`, `maxTokens` 파라미터 사용 금지
+    - 모델명 정규화: 비ASCII 하이픈 처리 (`lib/model-utils.ts`)
+    - 빈 스트림 폴백: gpt-4o-mini로 자동 재시도
   - **임베딩**: text-embedding-3-small
 - **AI 챗봇 SDK**: Vercel AI SDK
 - **GitHub 연동**: @octokit/rest (GitHub API v3)
@@ -22,6 +25,9 @@
 ## 3. 배포 환경  
 - **호스팅**: Vercel (프론트엔드), Supabase (백엔드/데이터베이스)
 - **CI/CD**: GitHub Actions
+- **런타임 설정**:
+  - Edge 런타임: 모든 API 라우트 (`export const runtime = 'edge'`)
+  - maxDuration: 60초 (Pro 플랜 기준)
 
 ## 4. Supabase 프로젝트 정보
 - **Project ID**: `xiygbsaewuqocaxoxeqn`

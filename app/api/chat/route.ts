@@ -4,8 +4,13 @@ import { embedText } from '@/lib/rag';
 import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { getSystemUserFromSupabase } from '@/lib/system-user';
+import { normalizeModel, getModelOptions } from '@/lib/model-utils';
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-4o-mini';
+// Edge 런타임 + maxDuration 설정 (해결책.md 1장)
+export const runtime = 'edge';
+export const maxDuration = 60;
+
+const MODEL = normalizeModel(process.env.CHATGPT_MODEL);
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,10 +73,18 @@ export async function POST(request: NextRequest) {
     ];
 
     // Stream response
+    // Reasoning 모델 분기 처리 (해결책.md 2장)
+    const modelOptions = getModelOptions(MODEL, 0.7);
+    
+    console.log('[CHAT] Calling OpenAI model with:', {
+      model: MODEL,
+      options: modelOptions,
+    });
+    
     const result = await streamText({
       model: openai(MODEL),
       messages: messagesWithContext,
-      temperature: 0.7,
+      ...modelOptions, // Reasoning 모델이면 옵션 없음
     });
 
     return result.toTextStreamResponse();

@@ -1,34 +1,37 @@
 # 현재 작업 상황 (Active Context)
 
 ## 1. 현재 집중하고 있는 작업  
-- **작업명**: GPT-5-mini 마이그레이션 완료
+- **작업명**: GPT-5-mini 마이그레이션 및 Vercel 배포 최적화 완료
 - **목표**: 
-  - GPT-4.1-mini에서 GPT-5-mini로 모델 변경
-  - 빈 응답 체크 로직 추가
-  - 명세서 생성 API 로깅 개선
+  - GPT-4o-mini에서 GPT-5-mini로 모델 변경
+  - 해결책.md 권장사항 적용 (Edge 런타임, Reasoning 모델 분기, 빈 스트림 폴백)
+  - 배포 환경 안정화
 - **상태**: ✅ 구현 완료
-- **다음 단계**: 테스트 및 검증
+- **다음 단계**: 배포 테스트 및 검증
 
 ## 2. 최근 완료된 작업 (2025-01-XX)
 
-### GPT-5-mini 마이그레이션 (2025-01-XX)
-- ✅ 모든 API 엔드포인트에서 모델 이름 변경 (`gpt-4.1-mini` → `gpt-5-mini`)
+### GPT-5-mini 마이그레이션 및 Vercel 배포 최적화 (2025-01-XX)
+- ✅ **모델 마이그레이션** (`gpt-4o-mini` → `gpt-5-mini`)
+  - 모든 API 엔드포인트에서 모델 이름 변경
   - `app/api/projects/[id]/chat/route.ts`
   - `app/api/chat/route.ts`
   - `lib/analysisService.ts`
   - `app/api/projects/[id]/tech-spec/generate/route.ts`
   - `app/api/projects/[id]/idea/synthesize/route.ts`
-- ✅ GPT-5-mini 빈 응답 체크 로직 추가
-  - `generateText` 사용하는 모든 API에 빈 응답 검증 추가
-  - `openai.chat.completions.create` 사용하는 모든 함수에 빈 응답 검증 추가
-  - 빈 응답 시 상세 에러 로그 및 사용자 친화적 에러 메시지 반환
-- ✅ 명세서 생성 API 로깅 개선
-  - 파일 수집, 챗봇 세션 수집, GPT-5-mini 호출 등 각 단계별 로그 추가
-  - 응답 길이 및 성공 여부 로깅
-- ✅ 마이그레이션 가이드 문서 작성 (`GPT-5-mini_마이그레이션_가이드.md`)
-  - GPT-5-mini 특성 설명 (reasoning 모델)
-  - `max_completion_tokens` 파라미터 사용 시 무응답 문제 설명
-  - 해결 방법 및 마이그레이션 체크리스트 제공
+- ✅ **해결책.md 권장사항 적용**
+  - Edge 런타임 + maxDuration 설정 (모든 API 라우트)
+  - Reasoning 모델 분기 처리 (`lib/model-utils.ts` 생성)
+  - 모델명 정규화 (비ASCII 하이픈 처리)
+  - 빈 스트림 폴백 로직 (gpt-4o-mini로 자동 재시도)
+- ✅ **코드 품질 개선**
+  - 공통 유틸리티 함수 생성 (`lib/model-utils.ts`)
+  - Usage 정보 처리 개선 (onFinish → result.usage)
+  - 빈 응답 체크 로직 개선 (chunkCount 기반)
+  - 상세한 로깅 추가
+- ✅ **문서 작성**
+  - `해결책_검토_리포트.md` 생성
+  - `GPT-5-mini_마이그레이션_가이드.md` 참조
 
 ### 이전 작업 (2025-01-16)
 

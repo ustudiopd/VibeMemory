@@ -3,8 +3,13 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getSystemUserFromSupabase } from '@/lib/system-user';
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
+import { normalizeModel, getModelOptions } from '@/lib/model-utils';
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-4o-mini';
+// Edge 런타임 + maxDuration 설정 (해결책.md 1장)
+export const runtime = 'edge';
+export const maxDuration = 60;
+
+const MODEL = normalizeModel(process.env.CHATGPT_MODEL);
 
 /**
  * POST /api/projects/[id]/idea/synthesize
@@ -129,8 +134,13 @@ export async function POST(
       : fullContext;
 
     // 4. AI 합성
-    console.log('[SYNTHESIZE] Generating specification with GPT-4o-mini...');
+    // Reasoning 모델 분기 처리 (해결책.md 2장)
+    const modelOptions = getModelOptions(MODEL);
+    
+    console.log('[SYNTHESIZE] Generating specification with', MODEL, '...');
     console.log('[SYNTHESIZE] Context length:', truncatedContext.length, 'characters');
+    console.log('[SYNTHESIZE] Model options:', modelOptions);
+    
     const prompt = `다음은 사용자가 업로드한 아이디어 파일과 챗봇 대화 기록입니다. 이를 기반으로 프로젝트 명세서를 작성해주세요.
 
 ${truncatedContext}
@@ -168,17 +178,18 @@ ${truncatedContext}
     const { text: specification } = await generateText({
       model: openai(MODEL),
       prompt: prompt,
+      ...modelOptions, // Reasoning 모델이면 옵션 없음
     });
 
-    console.log('[SYNTHESIZE] GPT-4o-mini response received, length:', specification?.length || 0);
+    console.log('[SYNTHESIZE] GPT-5-mini response received, length:', specification?.length || 0);
 
     // 빈 응답 체크
     if (!specification || specification.trim().length === 0) {
-      console.error('[SYNTHESIZE] ⚠️ Empty response from GPT-4o-mini.');
+      console.error('[SYNTHESIZE] ⚠️ Empty response from GPT-5-mini.');
       return NextResponse.json(
         {
           error: 'AI 응답이 비어있습니다. 잠시 후 다시 시도해주세요.',
-          details: 'GPT-4o-mini에서 응답을 생성하지 못했습니다.',
+          details: 'GPT-5-mini에서 응답을 생성하지 못했습니다.',
         },
         { status: 500 }
       );

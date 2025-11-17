@@ -4,8 +4,14 @@ import { embedText } from '@/lib/rag';
 import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { getSystemUserFromSupabase } from '@/lib/system-user';
+import { normalizeModel, isReasoningModel, getModelOptions } from '@/lib/model-utils';
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-4o-mini';
+// Edge 런타임 + maxDuration 설정 (해결책.md 1장)
+export const runtime = 'edge';
+export const maxDuration = 60;
+
+const MODEL = normalizeModel(process.env.CHATGPT_MODEL);
+const IS_REASONING = isReasoningModel(MODEL);
 
 /**
  * POST /api/projects/[id]/chat
@@ -265,8 +271,13 @@ ${context}
     }
 
     // 5. LLM 스트리밍 호출
+    // Reasoning 모델 분기 처리 (해결책.md 2장)
+    const modelOptions = getModelOptions(MODEL, 0.7);
+    
     console.log('[CHAT] Calling OpenAI model with:', {
       model: MODEL,
+      isReasoning: IS_REASONING,
+      options: modelOptions,
       systemPromptLength: systemPrompt.length,
       userPromptLength: userPrompt.length,
       previousMessagesCount: previousMessages.length,
@@ -275,6 +286,7 @@ ${context}
 
     let result;
     try {
+      console.log('[CHAT] start', { model: MODEL, isReasoning: IS_REASONING });
       result = await streamText({
         model: openai(MODEL),
         messages: [
@@ -282,7 +294,7 @@ ${context}
           ...previousMessages,
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.7,
+        ...modelOptions, // Reasoning 모델이면 옵션 없음
       });
       console.log('[CHAT] StreamText result created successfully');
     } catch (error) {
@@ -294,6 +306,9 @@ ${context}
 
     // 6. SSE 스트림 생성
     const encoder = new TextEncoder();
+    // onFinish에서 받은 usage 정보 저장용
+    let finishUsage: { inputTokens?: number; outputTokens?: number } | null = null;
+    
     const stream = new ReadableStream({
       async start(controller) {
         let fullContent = '';
@@ -331,18 +346,61 @@ ${context}
 
           console.log('[CHAT] Stream completed. Total chunks:', chunkCount, 'Content length:', fullContent.length);
 
-          // 빈 응답 체크
-          if (!fullContent || fullContent.trim().length === 0) {
-            console.error('[CHAT] ⚠️ Empty response from model. No content generated.', {
+          // usage 정보 가져오기 (onFinish 대신 result.usage 사용)
+          try {
+            const usage = await result.usage;
+            finishUsage = {
+              inputTokens: (usage as any)?.promptTokens || (usage as any)?.inputTokens,
+              outputTokens: (usage as any)?.completionTokens || (usage as any)?.outputTokens,
+            };
+            console.log('[CHAT] finish', {
+              usage: finishUsage,
+              textLen: fullContent.length,
+            });
+          } catch (error) {
+            console.warn('[CHAT] Could not get usage:', error);
+          }
+
+          // 빈 응답 체크 및 폴백 (해결책.md 3장)
+          // chunkCount > 0이면 실제로 청크를 받았으므로 sawText 대신 chunkCount로 체크
+          if (!fullContent || fullContent.trim().length === 0 || chunkCount === 0) {
+            console.warn('[CHAT] ⚠️ Empty stream detected. Attempting fallback to gpt-4o-mini...', {
               model: MODEL,
               chunkCount,
+              contentLength: fullContent.length,
               hasError: false
             });
-            const errorEvent = `event: error\ndata: ${JSON.stringify({ 
-              error: 'AI가 응답을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.',
-              details: `모델(${MODEL})에서 출력이 생성되지 않았습니다.`
-            })}\n\n`;
-            controller.enqueue(encoder.encode(errorEvent));
+            
+            // 폴백: gpt-4o-mini로 재시도
+            try {
+              const { generateText } = await import('ai');
+              const fallbackResult = await generateText({
+                model: openai('gpt-4o-mini'),
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  ...previousMessages,
+                  { role: 'user', content: userPrompt },
+                ],
+                temperature: 0.7,
+              });
+              
+              if (fallbackResult.text && fallbackResult.text.trim().length > 0) {
+                console.log('[CHAT] ✅ Fallback successful, length:', fallbackResult.text.length);
+                // 폴백 성공 시 스트림으로 전송
+                const fallbackChunk = `event: token\ndata: ${JSON.stringify(fallbackResult.text)}\n\n`;
+                controller.enqueue(encoder.encode(fallbackChunk));
+                fullContent = fallbackResult.text;
+              } else {
+                throw new Error('Fallback also returned empty response');
+              }
+            } catch (fallbackError) {
+              console.error('[CHAT] ❌ Fallback also failed:', fallbackError);
+              const errorEvent = `event: error\ndata: ${JSON.stringify({ 
+                error: 'AI가 응답을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.',
+                details: `모델(${MODEL})과 폴백 모델(gpt-4o-mini) 모두에서 출력이 생성되지 않았습니다.`
+              })}\n\n`;
+              controller.enqueue(encoder.encode(errorEvent));
+            }
           }
 
           // done 이벤트 발행
@@ -359,25 +417,25 @@ ${context}
               model: MODEL,
             });
 
-            // Assistant 메시지 저장 (usage는 스트림 완료 후에만 사용 가능)
-            // 빈 응답 시 usage를 가져올 수 없으므로 선택적으로 처리
-            // fullContent가 비어있지 않을 때만 usage를 가져오려고 시도
+            // Assistant 메시지 저장 (usage는 onFinish에서 받은 정보 사용)
             if (fullContent && fullContent.trim().length > 0) {
-              try {
-                // 스트림이 완료된 후 usage 가져오기 시도
-                const usage = await result.usage;
-                // AI SDK v2의 LanguageModelV2Usage 타입에 맞게 속성 접근
-                tokensInput = (usage as any)?.promptTokens || 0;
-                tokensOutput = (usage as any)?.completionTokens || Math.ceil(tokensOutput);
-                console.log('[CHAT] Usage retrieved:', { tokensInput, tokensOutput });
-              } catch (error) {
-                // AI_NoOutputGeneratedError는 모델이 응답을 생성하지 않았을 때 발생
-                if (error instanceof Error && error.message.includes('No output generated')) {
-                  console.warn('[CHAT] Model did not generate output. Using estimated tokens.', { model: MODEL });
+              // onFinish에서 받은 usage 정보 우선 사용
+              if (finishUsage) {
+                tokensInput = finishUsage.inputTokens || 0;
+                tokensOutput = finishUsage.outputTokens || Math.ceil(tokensOutput);
+                console.log('[CHAT] Usage from onFinish:', { tokensInput, tokensOutput });
+              } else {
+                // onFinish가 아직 호출되지 않았거나 정보가 없으면 result.usage 시도
+                try {
+                  const usage = await result.usage;
+                  tokensInput = (usage as any)?.promptTokens || (usage as any)?.inputTokens || 0;
+                  tokensOutput = (usage as any)?.completionTokens || (usage as any)?.outputTokens || Math.ceil(tokensOutput);
+                  console.log('[CHAT] Usage from result.usage:', { tokensInput, tokensOutput });
+                } catch (error) {
+                  console.warn('[CHAT] Could not get usage, using estimated tokens:', error);
                   // 추정값 사용 (이미 계산됨)
-                } else {
-                  console.error('[CHAT] Error getting usage:', error, { model: MODEL });
-                  // 추정값 사용 (이미 계산됨)
+                  tokensInput = 0;
+                  tokensOutput = Math.ceil(tokensOutput);
                 }
               }
             } else {

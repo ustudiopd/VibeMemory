@@ -1,5 +1,22 @@
 # 완료된 작업 내역 (Progress)
 
+## [2025-01-XX] - GPT-5-mini 마이그레이션 및 Vercel 배포 최적화
+- **모델 마이그레이션**: 
+  - `gpt-4o-mini` → `gpt-5-mini`로 모든 API 엔드포인트 변경
+  - 모델명 정규화 함수 추가 (비ASCII 하이픈 처리)
+- **해결책.md 권장사항 적용**:
+  - Edge 런타임 + maxDuration 설정 (모든 API 라우트)
+  - Reasoning 모델 분기 처리 (`lib/model-utils.ts` 생성)
+  - 빈 스트림 폴백 로직 구현 (gpt-4o-mini로 자동 재시도)
+- **코드 품질 개선**:
+  - 공통 유틸리티 함수 생성 (`normalizeModel`, `isReasoningModel`, `getModelOptions`)
+  - Usage 정보 처리 개선 (result.usage 사용)
+  - 빈 응답 체크 로직 개선 (chunkCount 기반)
+  - 상세한 로깅 추가
+- **문서 작성**:
+  - `해결책_검토_리포트.md` 생성
+  - 해결책.md 권장사항 검토 및 적용 완료
+
 ## [2025-01-16] - 챗봇 세션 관리 UI 구현
 - **SessionSidebar 컴포넌트 생성**:
   - 세션 목록 표시 (최신순 정렬)
