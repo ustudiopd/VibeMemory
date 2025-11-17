@@ -5,7 +5,7 @@ import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { getSystemUserFromSupabase } from '@/lib/system-user';
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-5-mini';
+const MODEL = process.env.CHATGPT_MODEL || 'gpt-4.1-mini';
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,8 +71,7 @@ export async function POST(request: NextRequest) {
     const result = await streamText({
       model: openai(MODEL),
       messages: messagesWithContext,
-      // GPT-5-mini는 reasoning 모델이므로 temperature 파라미터를 지원하지 않음
-      // temperature: 0.7,
+      temperature: 0.7,
     });
 
     return result.toTextStreamResponse();

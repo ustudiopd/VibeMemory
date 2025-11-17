@@ -5,7 +5,7 @@ import { streamText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { getSystemUserFromSupabase } from '@/lib/system-user';
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-5-mini';
+const MODEL = process.env.CHATGPT_MODEL || 'gpt-4.1-mini';
 
 /**
  * POST /api/projects/[id]/chat
@@ -282,8 +282,7 @@ ${context}
           ...previousMessages,
           { role: 'user', content: userPrompt },
         ],
-        // GPT-5-mini는 reasoning 모델이므로 temperature 파라미터를 지원하지 않음
-        // temperature: 0.7,
+        temperature: 0.7,
       });
       console.log('[CHAT] StreamText result created successfully');
     } catch (error) {
@@ -341,7 +340,7 @@ ${context}
             });
             const errorEvent = `event: error\ndata: ${JSON.stringify({ 
               error: 'AI가 응답을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.',
-              details: `${MODEL}에서 출력이 생성되지 않았습니다.`
+              details: `모델(${MODEL})에서 출력이 생성되지 않았습니다.`
             })}\n\n`;
             controller.enqueue(encoder.encode(errorEvent));
           }

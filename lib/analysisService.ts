@@ -6,7 +6,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const MODEL = process.env.CHATGPT_MODEL || 'gpt-5-mini';
+const MODEL = process.env.CHATGPT_MODEL || 'gpt-4.1-mini';
 
 async function updateScanProgress(
   runId: string,
@@ -223,10 +223,10 @@ ${context || '(관련 문서를 찾을 수 없습니다)'}
 
   const content = response.choices[0].message.content || '';
   
-  // GPT-5-mini 빈 응답 체크
+  // 빈 응답 체크
   if (!content || content.trim().length === 0) {
-    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateIdeaReview. Check if max_completion_tokens parameter is used.');
-    throw new Error('GPT-5-mini returned empty response for idea review');
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-4.1-mini in generateIdeaReview.');
+    throw new Error('GPT-4.1-mini returned empty response for idea review');
   }
   
   return content;
@@ -255,10 +255,10 @@ ${context || '(관련 기술 문서를 찾을 수 없습니다)'}
 
   const content = response.choices[0].message.content || '';
   
-  // GPT-5-mini 빈 응답 체크
+  // 빈 응답 체크
   if (!content || content.trim().length === 0) {
-    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateTechReview. Check if max_completion_tokens parameter is used.');
-    throw new Error('GPT-5-mini returned empty response for tech review');
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-4.1-mini in generateTechReview.');
+    throw new Error('GPT-4.1-mini returned empty response for tech review');
   }
   
   return content;
@@ -300,10 +300,10 @@ ${context || '(추가 컨텍스트를 찾을 수 없습니다)'}
 
   const content = response.choices[0].message.content || '';
   
-  // GPT-5-mini 빈 응답 체크
+  // 빈 응답 체크
   if (!content || content.trim().length === 0) {
-    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generatePatentReview. Check if max_completion_tokens parameter is used.');
-    throw new Error('GPT-5-mini returned empty response for patent review');
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-4.1-mini in generatePatentReview.');
+    throw new Error('GPT-4.1-mini returned empty response for patent review');
   }
   
   return content;
@@ -339,17 +339,17 @@ ${context || '(관련 문서를 찾을 수 없습니다)'}
 ---`;
 
   const response = await openai.chat.completions.create({
-    model: MODEL, // 'gpt-5-mini'
+    model: MODEL, // 'gpt-4.1-mini'
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.7,
   });
 
   const content = response.choices[0].message.content || '';
   
-  // GPT-5-mini 빈 응답 체크
+  // 빈 응답 체크
   if (!content || content.trim().length === 0) {
-    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateProjectSummary. Check if max_completion_tokens parameter is used.');
-    throw new Error('GPT-5-mini returned empty response for project summary');
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-4.1-mini in generateProjectSummary.');
+    throw new Error('GPT-4.1-mini returned empty response for project summary');
   }
   
   return content;
@@ -374,10 +374,10 @@ ${commitMessages.join('\n')}
 
   const content = response.choices[0].message.content || '';
   
-  // GPT-5-mini 빈 응답 체크
+  // 빈 응답 체크
   if (!content || content.trim().length === 0) {
-    console.error('[ANALYSIS] ⚠️ Empty response from GPT-5-mini in generateReleaseNote. Check if max_completion_tokens parameter is used.');
-    throw new Error('GPT-5-mini returned empty response for release note');
+    console.error('[ANALYSIS] ⚠️ Empty response from GPT-4.1-mini in generateReleaseNote.');
+    throw new Error('GPT-4.1-mini returned empty response for release note');
   }
   
   return content;
