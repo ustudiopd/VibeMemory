@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import ChatInterface from './ChatInterface';
 
 interface IdeaFile {
@@ -21,6 +22,9 @@ export default function IdeaNoteTab({ projectId }: IdeaNoteTabProps) {
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<IdeaFile | null>(null);
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     fetchFiles();
@@ -117,6 +121,40 @@ export default function IdeaNoteTab({ projectId }: IdeaNoteTabProps) {
     }
   };
 
+  const handlePreviewFile = async (file: IdeaFile) => {
+    // txt, md 파일만 미리보기 가능
+    const ext = file.file_name?.split('.').pop()?.toLowerCase();
+    if (ext !== 'txt' && ext !== 'md') {
+      alert('txt, md 파일만 미리보기를 지원합니다.');
+      return;
+    }
+
+    setPreviewFile(file);
+    setPreviewContent(null);
+    setPreviewLoading(true);
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/idea/files/${file.id}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '파일을 불러올 수 없습니다.');
+      }
+
+      if (data.success && data.content) {
+        setPreviewContent(data.content);
+      } else {
+        throw new Error('파일 내용을 가져올 수 없습니다.');
+      }
+    } catch (err) {
+      console.error('Error loading file preview:', err);
+      alert(err instanceof Error ? err.message : '파일 미리보기에 실패했습니다.');
+      setPreviewFile(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="mb-4 md:mb-6 hidden md:block">
@@ -170,29 +208,44 @@ export default function IdeaNoteTab({ projectId }: IdeaNoteTabProps) {
           </div>
         ) : (
           <div className="space-y-2">
-            {files.map((file) => (
-              <div
-                key={file.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl">📄</span>
-                  <div>
-                    <p className="font-medium text-gray-900">{file.file_name}</p>
-                    <p className="text-xs text-gray-500">
-                      {file.file_size ? `${(file.file_size / 1024).toFixed(2)} KB` : ''} ·{' '}
-                      {new Date(file.created_at).toLocaleDateString('ko-KR')}
-                    </p>
+            {files.map((file) => {
+              const ext = file.file_name?.split('.').pop()?.toLowerCase();
+              const canPreview = ext === 'txt' || ext === 'md';
+              
+              return (
+                <div
+                  key={file.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center space-x-3 flex-1 min-w-0">
+                    <span className="text-2xl">📄</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{file.file_name}</p>
+                      <p className="text-xs text-gray-500">
+                        {file.file_size ? `${(file.file_size / 1024).toFixed(2)} KB` : ''} ·{' '}
+                        {new Date(file.created_at).toLocaleDateString('ko-KR')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 ml-4">
+                    {canPreview && (
+                      <button
+                        onClick={() => handlePreviewFile(file)}
+                        className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      >
+                        미리보기
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteFile(file.id)}
+                      className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
+                    >
+                      삭제
+                    </button>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDeleteFile(file.id)}
-                  className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
-                >
-                  삭제
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -208,6 +261,85 @@ export default function IdeaNoteTab({ projectId }: IdeaNoteTabProps) {
 
       {/* 명세서 생성 및 Cursor 내보내기 */}
       <SpecificationActions projectId={projectId} />
+
+      {/* 파일 미리보기 모달 */}
+      {previewFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900 truncate flex-1 mr-4">
+                {previewFile.file_name}
+              </h2>
+              <button
+                onClick={() => {
+                  setPreviewFile(null);
+                  setPreviewContent(null);
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              {previewLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-500">파일을 불러오는 중...</p>
+                </div>
+              ) : previewContent !== null ? (
+                <div className="prose max-w-none">
+                  {previewFile.file_name?.endsWith('.md') ? (
+                    <div className="markdown-content prose prose-sm max-w-none">
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => <h1 className="text-2xl font-bold mt-6 mb-4">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-xl font-bold mt-5 mb-3">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-lg font-bold mt-4 mb-2">{children}</h3>,
+                          p: ({ children }) => <p className="mb-4">{children}</p>,
+                          ul: ({ children }) => <ul className="list-disc list-inside mb-4 space-y-1">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal list-inside mb-4 space-y-1">{children}</ol>,
+                          li: ({ children }) => <li className="ml-4">{children}</li>,
+                          code: ({ children, className }) => {
+                            const isInline = !className;
+                            return isInline ? (
+                              <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono">{children}</code>
+                            ) : (
+                              <code className="block bg-gray-100 p-4 rounded-lg text-sm font-mono overflow-x-auto mb-4">
+                                {children}
+                              </code>
+                            );
+                          },
+                          pre: ({ children }) => <pre className="bg-gray-100 p-4 rounded-lg overflow-x-auto mb-4">{children}</pre>,
+                          blockquote: ({ children }) => (
+                            <blockquote className="border-l-4 border-gray-300 pl-4 italic my-4">{children}</blockquote>
+                          ),
+                          a: ({ href, children }) => (
+                            <a href={href} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">
+                              {children}
+                            </a>
+                          ),
+                          strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                          em: ({ children }) => <em className="italic">{children}</em>,
+                        }}
+                      >
+                        {previewContent}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-lg">
+                      {previewContent}
+                    </pre>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  파일 내용을 불러올 수 없습니다.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

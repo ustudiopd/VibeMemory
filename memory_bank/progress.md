@@ -1,5 +1,17 @@
 # 완료된 작업 내역 (Progress)
 
+## [2025-01-XX] - 아이디어 캔버스 파일 미리보기 기능 추가
+- **파일 미리보기 API 구현**:
+  - `GET /api/projects/[id]/idea/files/[fileId]` 엔드포인트 생성
+  - Storage에서 파일 내용 읽기
+  - txt, md 파일만 미리보기 지원
+- **UI 개선**:
+  - `IdeaNoteTab` 컴포넌트에 미리보기 모달 추가
+  - txt, md 파일에만 "미리보기" 버튼 표시
+  - react-markdown을 사용한 마크다운 렌더링
+  - txt 파일은 pre 태그로 표시
+  - 로딩 상태 및 에러 처리
+
 ## [2025-01-XX] - GPT-5-mini 마이그레이션 및 Vercel 배포 최적화
 - **모델 마이그레이션**: 
   - `gpt-4o-mini` → `gpt-5-mini`로 모든 API 엔드포인트 변경
