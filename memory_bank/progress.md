@@ -5,9 +5,16 @@
   - `gpt-4o-mini` → `gpt-5-mini`로 모든 API 엔드포인트 변경
   - 모델명 정규화 함수 추가 (비ASCII 하이픈 처리)
 - **해결책.md 권장사항 적용**:
-  - Edge 런타임 + maxDuration 설정 (모든 API 라우트)
+  - Edge 런타임 + maxDuration 설정 (스트리밍 API)
+  - Node.js 런타임 + maxDuration 300초 (긴 처리 시간 필요한 API)
   - Reasoning 모델 분기 처리 (`lib/model-utils.ts` 생성)
   - 빈 스트림 폴백 로직 구현 (gpt-4o-mini로 자동 재시도)
+- **기술 스택 생성 API 타임아웃 해결**:
+  - 504 Gateway Timeout 에러 해결
+  - Edge → Node.js 런타임 변경 (tech-spec/generate API)
+  - maxDuration 60초 → 300초로 증가
+  - 프롬프트 길이 제한 추가 (기술 리뷰 최대 3000자)
+  - 프론트엔드 에러 핸들링 개선 (Content-Type 확인, JSON 파싱 에러 처리)
 - **코드 품질 개선**:
   - 공통 유틸리티 함수 생성 (`normalizeModel`, `isReasoningModel`, `getModelOptions`)
   - Usage 정보 처리 개선 (result.usage 사용)
