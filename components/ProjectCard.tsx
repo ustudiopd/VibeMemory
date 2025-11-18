@@ -99,7 +99,7 @@ export default function ProjectCard({ project, onDelete, deletingId }: ProjectCa
 
       {/* 2. 썸네일 이미지 */}
       {project.primary_screenshot && (
-        <div className="aspect-[16/9] bg-gray-100 rounded-lg overflow-hidden mb-3 relative">
+        <div className="aspect-[16/9] bg-gray-100 rounded-lg overflow-hidden mb-3 relative flex items-center justify-center">
           {thumbnailLoading ? (
             <div className="w-full h-full flex items-center justify-center bg-gray-100">
               <div className="text-gray-400 text-sm">로딩 중...</div>
@@ -112,7 +112,7 @@ export default function ProjectCard({ project, onDelete, deletingId }: ProjectCa
             <img
               src={thumbnailUrl}
               alt={project.project_name || project.repo_name || '프로젝트 썸네일'}
-              className="w-full h-full object-cover"
+              className="w-[70%] h-[70%] object-cover rounded-lg"
               loading="lazy"
             />
           )}
