@@ -15,6 +15,12 @@ interface ProjectCardProps {
       storage_path: string;
       file_name: string;
     } | null;
+    latest_comment?: {
+      id: string;
+      author_name: string;
+      content: string;
+      created_at: string;
+    } | null;
   };
   onDelete: (id: string) => void;
   deletingId: string | null;
@@ -136,6 +142,28 @@ export default function ProjectCard({ project, onDelete, deletingId }: ProjectCa
           <p className="text-sm text-gray-700 line-clamp-3">
             {project.description}
           </p>
+        </div>
+      )}
+
+      {/* 5. 최신 댓글 */}
+      {project.latest_comment && (
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-gray-900 mb-1">
+                {project.latest_comment.author_name || '익명'}
+              </p>
+              <p className="text-xs text-gray-600 line-clamp-2">
+                {project.latest_comment.content}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {new Date(project.latest_comment.created_at).toLocaleDateString('ko-KR', {
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>

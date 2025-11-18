@@ -63,12 +63,22 @@ export async function GET(request: NextRequest) {
             .is('deleted_at', null)
             .single();
 
+          // 최신 댓글 1개 조회
+          const { data: latestComment } = await supabaseAdmin
+            .from('project_comments')
+            .select('id, author_name, content, created_at')
+            .eq('project_id', project.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
           return {
             ...project,
             project_name: project.project_name || project.repo_name || null,
             project_type: project.project_type || 'github',
             project_overview: project.project_analysis?.[0]?.project_overview || null,
             primary_screenshot: primaryScreenshot || null,
+            latest_comment: latestComment || null,
           };
         })
       );
@@ -115,6 +125,15 @@ export async function GET(request: NextRequest) {
           .eq('is_primary', true)
           .is('deleted_at', null)
           .single();
+
+        // 최신 댓글 1개 조회
+        const { data: latestComment } = await supabaseAdmin
+          .from('project_comments')
+          .select('id, author_name, content, created_at')
+          .eq('project_id', project.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
         
         return {
           ...project,
@@ -123,6 +142,7 @@ export async function GET(request: NextRequest) {
           project_type: projectType,
           project_overview: projectOverview,
           primary_screenshot: primaryScreenshot || null,
+          latest_comment: latestComment || null,
         };
       })
     );

@@ -72,6 +72,7 @@ export default function ProjectDetailPage() {
   const [loadingCommits, setLoadingCommits] = useState(false);
   const [comments, setComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
+  const [newCommentName, setNewCommentName] = useState('');
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -154,7 +155,7 @@ export default function ProjectDetailPage() {
 
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || submittingComment) return;
+    if (!newCommentName.trim() || !newComment.trim() || submittingComment) return;
 
     setSubmittingComment(true);
     try {
@@ -163,12 +164,13 @@ export default function ProjectDetailPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content: newComment }),
+        body: JSON.stringify({ name: newCommentName, content: newComment }),
       });
 
       if (response.ok) {
         const data = await response.json();
         setComments([data.comment, ...comments]);
+        setNewCommentName('');
         setNewComment('');
       } else {
         const errorData = await response.json();
@@ -965,6 +967,16 @@ export default function ProjectDetailPage() {
                       
                       {/* 댓글 작성 폼 */}
                       <form onSubmit={handleSubmitComment} className="mb-6">
+                        <div className="mb-3">
+                          <input
+                            type="text"
+                            value={newCommentName}
+                            onChange={(e) => setNewCommentName(e.target.value)}
+                            placeholder="이름"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
+                            disabled={submittingComment}
+                          />
+                        </div>
                         <textarea
                           value={newComment}
                           onChange={(e) => setNewComment(e.target.value)}
@@ -976,7 +988,7 @@ export default function ProjectDetailPage() {
                         <div className="mt-2 flex justify-end">
                           <button
                             type="submit"
-                            disabled={!newComment.trim() || submittingComment}
+                            disabled={!newCommentName.trim() || !newComment.trim() || submittingComment}
                             className="px-4 py-2 text-sm font-medium text-white bg-slate-600 rounded-md hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {submittingComment ? '작성 중...' : '댓글 작성'}
@@ -998,6 +1010,9 @@ export default function ProjectDetailPage() {
                             <div key={comment.id} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex-1">
+                                  <p className="text-sm font-semibold text-gray-900 mb-1">
+                                    {comment.author_name || '익명'}
+                                  </p>
                                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{comment.content}</p>
                                 </div>
                               </div>

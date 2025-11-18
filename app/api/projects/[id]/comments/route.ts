@@ -60,7 +60,14 @@ export async function POST(
 ) {
   try {
     const { id: projectId } = await params;
-    const { content } = await request.json();
+    const { name, content } = await request.json();
+
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Name is required' },
+        { status: 400 }
+      );
+    }
 
     if (!content || typeof content !== 'string' || content.trim().length === 0) {
       return NextResponse.json(
@@ -93,6 +100,7 @@ export async function POST(
       .insert({
         project_id: projectId,
         owner_id: user.id,
+        author_name: name.trim(),
         content: content.trim(),
       })
       .select()
