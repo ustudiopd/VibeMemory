@@ -1,5 +1,28 @@
 # 완료된 작업 내역 (Progress)
 
+## [2025-11-21] - PostgREST 스키마 제약 문제 해결 및 Public 뷰 전환
+- **문제 진단**:
+  - `PGRST106` 에러 발생: PostgREST가 `vibememory` 스키마를 직접 노출하지 않음
+  - 현재 허용된 스키마: `public`, `hdd`만
+  - 테스트 엔드포인트 생성으로 문제 확인 (`/api/test/project-check`)
+- **해결책 적용**:
+  - 기본 스키마를 `public`으로 변경 (`lib/supabase.ts`)
+  - 모든 `.schema('vibememory')` 호출 제거
+  - Public 뷰를 통한 접근으로 전환
+- **수정된 파일**:
+  - `lib/supabase.ts` - 기본 스키마 변경
+  - 주요 API 파일들 - 스키마 명시 제거 (8개 파일)
+- **문서 업데이트**:
+  - `SUPABASE_MIGRATION_GUIDE.md` 업데이트
+  - PostgREST 제약 사항 명시
+  - Public 뷰 사용이 필수임을 강조
+  - 실제 적용 사례 추가
+- **결과**:
+  - 프로젝트 상세 페이지 정상 작동
+  - 스크린샷 조회 정상 작동
+  - 분석 데이터 조회 정상 작동
+  - "프로젝트를 찾을 수 없습니다" 에러 해결
+
 ## [2025-01-XX] - 웹훅 연동 신뢰성 및 성능 개선
 - **런타임 설정 추가**:
   - `app/api/github/webhook/route.ts`에 Node.js 런타임 및 maxDuration 설정

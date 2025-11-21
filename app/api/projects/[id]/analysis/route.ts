@@ -20,7 +20,7 @@ export async function GET(
 
     const { id: projectId } = await params;
 
-    // Verify project ownership
+    // Verify project ownership (public 뷰 사용)
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id, owner_id')
@@ -29,10 +29,21 @@ export async function GET(
       .single();
 
     if (projectError || !project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      console.error('[ANALYSIS] Project not found:', {
+        projectId,
+        ownerId: user.id,
+        error: projectError,
+        errorCode: projectError?.code,
+        errorMessage: projectError?.message,
+      });
+      return NextResponse.json({ 
+        error: 'Project not found',
+        details: projectError?.message || 'Unknown error',
+        code: projectError?.code,
+      }, { status: 404 });
     }
 
-    // Fetch project analysis
+    // Fetch project analysis (public 뷰 사용)
     const { data: analysis, error: analysisError } = await supabaseAdmin
       .from('project_analysis')
       .select('*')
@@ -77,7 +88,7 @@ export async function POST(
 
     const { id: projectId } = await params;
 
-    // 프로젝트 정보 확인
+    // 프로젝트 정보 확인 (public 뷰 사용)
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id, owner_id, repo_owner, repo_name')
@@ -107,7 +118,7 @@ export async function POST(
       project.repo_name
     );
 
-    // 결과 조회
+    // 결과 조회 (public 뷰 사용)
     const { data: analysis, error: analysisError } = await supabaseAdmin
       .from('project_analysis')
       .select('*')

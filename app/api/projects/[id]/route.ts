@@ -19,7 +19,7 @@ export async function DELETE(
 
     const { id: projectId } = await params;
 
-    // 프로젝트 소유권 확인
+    // 프로젝트 소유권 확인 (public 뷰 사용)
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id, owner_id, repo_owner, repo_name, webhook_id')
@@ -76,7 +76,7 @@ export async function DELETE(
       }
     }
 
-    // 프로젝트 삭제 (CASCADE로 관련 데이터 자동 삭제)
+    // 프로젝트 삭제 (CASCADE로 관련 데이터 자동 삭제, public 뷰 사용)
     const { error: deleteError } = await supabaseAdmin
       .from('projects')
       .delete()

@@ -17,13 +17,16 @@ export async function GET(request: NextRequest) {
     const ownerId = user.id;
 
     // Fetch projects for this user using direct SQL query to bypass RLS on views
-    const { data: projects, error } = await supabaseAdmin.rpc('get_user_projects', {
-      p_owner_id: ownerId,
-    });
+    // get_user_projects는 public 스키마에 있으므로 명시적으로 public 스키마 사용
+    const { data: projects, error } = await supabaseAdmin
+      .schema('public')
+      .rpc('get_user_projects', {
+        p_owner_id: ownerId,
+      });
 
     if (error) {
       console.error('Error fetching projects:', error);
-      // Fallback to direct table access if RPC fails
+      // Fallback to direct table access if RPC fails (public 뷰 사용)
       const { data: projectsDirect, error: directError } = await supabaseAdmin
         .from('projects')
         .select(`
@@ -54,7 +57,7 @@ export async function GET(request: NextRequest) {
       // project_overview와 대표 이미지를 각 프로젝트에 추가
       const projectsWithOverview = await Promise.all(
         (projectsDirect || []).map(async (project: any) => {
-          // 대표 이미지 조회
+          // 대표 이미지 조회 (public 뷰 사용)
           const { data: primaryScreenshot } = await supabaseAdmin
             .from('project_screenshots')
             .select('id, storage_path, file_name')
@@ -63,7 +66,7 @@ export async function GET(request: NextRequest) {
             .is('deleted_at', null)
             .single();
 
-          // 최신 댓글 1개 조회
+          // 최신 댓글 1개 조회 (public 뷰 사용)
           const { data: latestComment } = await supabaseAdmin
             .from('project_comments')
             .select('id, author_name, content, created_at')
@@ -106,7 +109,7 @@ export async function GET(request: NextRequest) {
           projectType = projectType || projectData?.project_type || 'github';
         }
         
-        // project_overview 조회
+        // project_overview 조회 (public 뷰 사용)
         let projectOverview = project.project_overview;
         if (!projectOverview) {
           const { data: analysis } = await supabaseAdmin
@@ -117,7 +120,7 @@ export async function GET(request: NextRequest) {
           projectOverview = analysis?.project_overview || null;
         }
 
-        // 대표 이미지 조회
+        // 대표 이미지 조회 (public 뷰 사용)
         const { data: primaryScreenshot } = await supabaseAdmin
           .from('project_screenshots')
           .select('id, storage_path, file_name')
@@ -126,7 +129,7 @@ export async function GET(request: NextRequest) {
           .is('deleted_at', null)
           .single();
 
-        // 최신 댓글 1개 조회
+        // 최신 댓글 1개 조회 (public 뷰 사용)
         const { data: latestComment } = await supabaseAdmin
           .from('project_comments')
           .select('id, author_name, content, created_at')

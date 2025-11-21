@@ -32,17 +32,16 @@ export async function POST(request: NextRequest) {
     // Embed user query
     const queryEmbedding = await embedText(userMessage);
 
-    // Search RAG database
-    const { data: searchResults, error: searchError } = await supabaseAdmin.rpc(
-      'hybrid_search_rrf',
-      {
+    // Search RAG database (public 래퍼 함수 사용)
+    const { data: searchResults, error: searchError } = await supabaseAdmin
+      .schema('public')
+      .rpc('hybrid_search_rrf', {
         p_query_text: userMessage,
         p_query_embedding: queryEmbedding,
         p_project_id: projectId || null,
         p_limit: 10,
         p_memory_bank_weight: 1.2,
-      }
-    );
+      });
 
     if (searchError) {
       console.error('RAG search error:', searchError);

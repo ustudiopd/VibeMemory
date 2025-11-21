@@ -218,10 +218,12 @@ async function processWebhookJob(job: any) {
   let claimResult: boolean | null = false;
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    const result = await supabaseAdmin.rpc('claim_job', {
-      p_job_name: jobName,
-      p_duration: '30 minutes',
-    });
+    const result = await supabaseAdmin
+      .schema('public')
+      .rpc('claim_job', {
+        p_job_name: jobName,
+        p_duration: '30 minutes',
+      });
 
     claimResult = result.data;
 

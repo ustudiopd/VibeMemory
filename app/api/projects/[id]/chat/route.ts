@@ -39,7 +39,7 @@ export async function POST(
       );
     }
 
-    // 프로젝트 소유 확인 및 project_type 확인
+    // 프로젝트 소유 확인 및 project_type 확인 (vibememory 스키마 명시)
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id, repo_owner, repo_name, project_type')
@@ -85,7 +85,7 @@ export async function POST(
 
     // project_type에 따라 다른 RPC 함수 호출
     if (project.project_type === 'idea') {
-      // 아이디어 프로젝트: search_idea_project_chunks_rrf 사용
+      // 아이디어 프로젝트: search_idea_project_chunks_rrf 사용 (vibememory 스키마)
       const { data: ideaSearchResults, error: ideaSearchError } = await supabaseAdmin.rpc(
         'search_idea_project_chunks_rrf',
         {
@@ -116,7 +116,7 @@ export async function POST(
         console.log('[CHAT] ✅ RPC function returned:', searchResults?.length || 0, 'results');
       }
     } else {
-      // GitHub 프로젝트: search_project_chunks_rrf 사용
+      // GitHub 프로젝트: search_project_chunks_rrf 사용 (vibememory 스키마)
       const { data: projectSearchResults, error: projectSearchError } = await supabaseAdmin.rpc(
         'search_project_chunks_rrf',
         {
@@ -129,17 +129,16 @@ export async function POST(
 
       if (projectSearchError) {
         console.warn('[CHAT] search_project_chunks_rrf failed, falling back to hybrid_search_rrf:', projectSearchError);
-        // 폴백: 기존 hybrid_search_rrf 사용
-        const { data: hybridResults, error: hybridError } = await supabaseAdmin.rpc(
-          'hybrid_search_rrf',
-          {
+        // 폴백: 기존 hybrid_search_rrf 사용 (public 래퍼 함수)
+        const { data: hybridResults, error: hybridError } = await supabaseAdmin
+          .schema('public')
+          .rpc('hybrid_search_rrf', {
             p_query_text: message,
             p_query_embedding: queryEmbedding,
             p_project_id: projectId,
             p_limit: 8,
             p_memory_bank_weight: 1.2,
-          }
-        );
+          });
 
         if (hybridError) {
           console.error('[CHAT] hybrid_search_rrf also failed:', hybridError);
@@ -253,7 +252,7 @@ ${context}
 
 **중요:** 답변은 일반 텍스트로 작성하고, 절대로 단어나 문장을 따옴표로 감싸지 말라.`;
 
-    // 기존 메시지 가져오기 (세션이 있는 경우)
+    // 기존 메시지 가져오기 (세션이 있는 경우, vibememory 스키마 명시)
     let previousMessages: any[] = [];
     if (session) {
       const { data: messages } = await supabaseAdmin
@@ -405,15 +404,17 @@ ${context}
           const doneEvent = `event: done\ndata: {}\n\n`;
           controller.enqueue(encoder.encode(doneEvent));
 
-          // 7. DB에 메시지 저장
+          // 7. DB에 메시지 저장 (vibememory 스키마 명시)
           if (session) {
             // 사용자 메시지 저장
-            await supabaseAdmin.from('chat_messages').insert({
-              session_id: session.id,
-              role: 'user',
-              content: message,
-              model: MODEL,
-            });
+            await supabaseAdmin
+              .from('chat_messages')
+              .insert({
+                session_id: session.id,
+                role: 'user',
+                content: message,
+                model: MODEL,
+              });
 
             // Assistant 메시지 저장 (usage는 onFinish에서 받은 정보 사용)
             if (fullContent && fullContent.trim().length > 0) {
@@ -443,7 +444,7 @@ ${context}
               tokensOutput = 0;
             }
 
-            // Assistant 메시지 저장
+            // Assistant 메시지 저장 (vibememory 스키마 명시)
             const { data: assistantMessage, error: messageError } = await supabaseAdmin
               .from('chat_messages')
               .insert({
@@ -475,7 +476,7 @@ ${context}
                 score: source.score || null,
               }));
 
-              const { error: citationsError } = await supabaseAdmin
+              const { error: citationsError } =               await supabaseAdmin
                 .from('chat_message_citations')
                 .insert(citations);
 
@@ -484,7 +485,7 @@ ${context}
               }
             }
 
-            // 세션 업데이트 시간 갱신
+            // 세션 업데이트 시간 갱신 (vibememory 스키마 명시)
             await supabaseAdmin
               .from('chat_sessions')
               .update({ updated_at: new Date().toISOString() })

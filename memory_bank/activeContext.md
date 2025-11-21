@@ -1,16 +1,44 @@
 # 현재 작업 상황 (Active Context)
 
 ## 1. 현재 집중하고 있는 작업  
-- **작업명**: 웹훅 연동 신뢰성 및 성능 개선 완료
+- **작업명**: PostgREST 스키마 제약 문제 해결 및 Public 뷰 전환 완료
 - **목표**: 
-  - 빠른 ACK + 작업 큐 시스템으로 웹훅 응답 시간 단축
-  - Idempotency 보장으로 중복 처리 방지
-  - Compare API로 변경 파일 목록 정확도 향상
-  - 야간 배치로 old 청크 자동 정리
+  - PostgREST가 `vibememory` 스키마를 직접 노출하지 않는 문제 해결
+  - Public 뷰를 통한 접근으로 전환
+  - 모든 API 엔드포인트에서 스키마 명시 제거
+  - 스키마 마이그레이션 가이드 업데이트
 - **상태**: ✅ 구현 완료
-- **다음 단계**: 배포 테스트 및 모니터링
+- **다음 단계**: 다른 프로젝트 마이그레이션 시 동일 패턴 적용
 
-## 2. 최근 완료된 작업 (2025-01-XX)
+## 2. 최근 완료된 작업 (2025-11-21)
+
+### PostgREST 스키마 제약 문제 해결 및 Public 뷰 전환 (2025-11-21)
+- ✅ **문제 진단**
+  - `PGRST106` 에러 발생: "The schema must be one of the following: public, hdd"
+  - PostgREST가 `vibememory` 스키마를 직접 노출하지 않음
+  - 테스트 엔드포인트 생성 (`/api/test/project-check`)으로 문제 확인
+- ✅ **해결책 적용**
+  - 기본 스키마를 `public`으로 변경 (`lib/supabase.ts`)
+  - 모든 `.schema('vibememory')` 호출 제거
+  - Public 뷰를 통한 접근으로 전환
+- ✅ **수정된 파일**
+  - `lib/supabase.ts` - 기본 스키마 변경
+  - `app/api/projects/route.ts` - 스키마 명시 제거
+  - `app/api/projects/[id]/screenshots/route.ts` - 스키마 명시 제거
+  - `app/api/projects/[id]/analysis/route.ts` - 스키마 명시 제거
+  - `app/api/projects/[id]/chat/route.ts` - 스키마 명시 제거
+  - `app/api/projects/[id]/comments/route.ts` - 스키마 명시 제거
+  - `app/api/projects/[id]/progress/route.ts` - 스키마 명시 제거
+  - `app/api/projects/[id]/route.ts` - 스키마 명시 제거
+- ✅ **문서 업데이트**
+  - `SUPABASE_MIGRATION_GUIDE.md` 업데이트
+  - PostgREST 제약 사항 명시
+  - Public 뷰 사용이 필수임을 강조
+  - 실제 적용 사례 추가 (VibeMemory 프로젝트)
+- ✅ **테스트 및 검증**
+  - 프로젝트 상세 페이지 정상 작동 확인
+  - 스크린샷 조회 정상 작동 확인
+  - 분석 데이터 조회 정상 작동 확인
 
 ### 웹훅 연동 신뢰성 및 성능 개선 (2025-01-XX)
 - ✅ **런타임 설정 추가**

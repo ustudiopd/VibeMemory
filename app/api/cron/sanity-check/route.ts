@@ -14,13 +14,12 @@ export async function GET(request: NextRequest) {
     }
 
     const jobName = 'cron:sanity-check';
-    const { data: claimResult, error: claimError } = await supabaseAdmin.rpc(
-      'claim_job',
-      {
+    const { data: claimResult, error: claimError } = await supabaseAdmin
+      .schema('public')
+      .rpc('claim_job', {
         p_job_name: jobName,
         p_duration: '2 hours',
-      }
-    );
+      });
 
     if (claimError || !claimResult) {
       return NextResponse.json(

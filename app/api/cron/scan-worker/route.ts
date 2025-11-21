@@ -68,10 +68,12 @@ export async function GET(request: NextRequest) {
 
     // Job lock 획득 (동시 실행 방지)
     const jobName = `scan:${pendingRun.project_id}`;
-    const { data: claimResult, error: claimError } = await supabaseAdmin.rpc('claim_job', {
-      p_job_name: jobName,
-      p_duration: '1 hour',
-    });
+    const { data: claimResult, error: claimError } = await supabaseAdmin
+      .schema('public')
+      .rpc('claim_job', {
+        p_job_name: jobName,
+        p_duration: '1 hour',
+      });
 
     if (claimError || !claimResult) {
       console.log(`[SCAN-WORKER] Job ${jobName} already claimed, skipping`);

@@ -26,7 +26,7 @@ export async function GET(
     const offset = parseInt(searchParams.get('offset') || '0', 10);
     const cursor = searchParams.get('cursor');
 
-    // 프로젝트 소유 확인
+    // 프로젝트 소유 확인 (public 뷰 사용)
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id')
@@ -35,13 +35,24 @@ export async function GET(
       .single();
 
     if (projectError || !project) {
+      console.error('[SCREENSHOTS] Project not found:', {
+        projectId,
+        ownerId: user.id,
+        error: projectError,
+        errorCode: projectError?.code,
+        errorMessage: projectError?.message,
+      });
       return NextResponse.json(
-        { error: '프로젝트를 찾을 수 없습니다.' },
+        { 
+          error: '프로젝트를 찾을 수 없습니다.',
+          details: projectError?.message || 'Unknown error',
+          code: projectError?.code,
+        },
         { status: 404 }
       );
     }
 
-    // 스크린샷 목록 조회 (soft delete 제외)
+    // 스크린샷 목록 조회 (soft delete 제외, public 뷰 사용)
     let query = supabaseAdmin
       .from('project_screenshots')
       .select('*')
@@ -102,7 +113,7 @@ export async function POST(
 
     const { id: projectId } = await params;
 
-    // 프로젝트 소유 확인
+    // 프로젝트 소유 확인 (public 뷰 사용)
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id')
@@ -111,8 +122,19 @@ export async function POST(
       .single();
 
     if (projectError || !project) {
+      console.error('[SCREENSHOTS POST] Project not found:', {
+        projectId,
+        ownerId: user.id,
+        error: projectError,
+        errorCode: projectError?.code,
+        errorMessage: projectError?.message,
+      });
       return NextResponse.json(
-        { error: '프로젝트를 찾을 수 없습니다.' },
+        { 
+          error: '프로젝트를 찾을 수 없습니다.',
+          details: projectError?.message || 'Unknown error',
+          code: projectError?.code,
+        },
         { status: 404 }
       );
     }
@@ -175,7 +197,7 @@ export async function POST(
     let height: number | null = null;
     // TODO: 이미지 크기 추출 로직 추가 (sharp 라이브러리 사용 권장)
 
-    // DB에 스크린샷 메타데이터 생성
+    // DB에 스크린샷 메타데이터 생성 (public 뷰 사용)
     console.log('[SCREENSHOTS] Creating screenshot record in DB...');
     const { data: screenshot, error: insertError } = await supabaseAdmin
       .from('project_screenshots')
@@ -239,7 +261,7 @@ export async function POST(
 
     if (!storagePath) {
       console.error('[SCREENSHOTS] Storage upload failed, cleaning up DB record...');
-      // 업로드 실패 시 DB 레코드 삭제
+      // 업로드 실패 시 DB 레코드 삭제 (public 뷰 사용)
       await supabaseAdmin
         .from('project_screenshots')
         .delete()
@@ -264,7 +286,7 @@ export async function POST(
 
     console.log('[SCREENSHOTS] Storage upload successful:', storagePath);
 
-    // Storage 경로 업데이트
+    // Storage 경로 업데이트 (public 뷰 사용)
     const { data: updatedScreenshot, error: updateError } = await supabaseAdmin
       .from('project_screenshots')
       .update({ storage_path: storagePath })

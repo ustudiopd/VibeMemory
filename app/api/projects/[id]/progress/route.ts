@@ -18,7 +18,7 @@ export async function GET(
 
     const { id: projectId } = await params;
 
-    // Verify project ownership (시스템 사용자의 프로젝트인지 확인)
+    // Verify project ownership (시스템 사용자의 프로젝트인지 확인, public 뷰 사용)
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id, owner_id')
@@ -30,13 +30,12 @@ export async function GET(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Get progress using RPC function
-    const { data: progress, error: progressError } = await supabaseAdmin.rpc(
-      'get_project_progress',
-      {
+    // Get progress using RPC function (public 래퍼 함수)
+    const { data: progress, error: progressError } = await supabaseAdmin
+      .schema('public')
+      .rpc('get_project_progress', {
         p_project_id: projectId,
-      }
-    );
+      });
 
     if (progressError) {
       console.error('Error getting progress:', progressError);

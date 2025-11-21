@@ -144,10 +144,12 @@ export async function POST(
     
     // 최대 5번 재시도
     for (let attempt = 0; attempt < 5; attempt++) {
-      const result = await supabaseAdmin.rpc('claim_job', {
-        p_job_name: jobName,
-        p_duration: '1 hour',
-      });
+      const result = await supabaseAdmin
+        .schema('public')
+        .rpc('claim_job', {
+          p_job_name: jobName,
+          p_duration: '1 hour',
+        });
       
       claimResult = result.data;
       claimError = result.error;

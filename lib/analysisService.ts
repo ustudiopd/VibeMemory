@@ -44,16 +44,15 @@ export async function analyzeProject(
     const ideaQuery = '프로젝트 목표 핵심 문제 타겟 사용자 기대 효과';
     const ideaQueryEmbedding = await embedText(ideaQuery);
     
-    const { data: ideaChunks, error: ideaSearchError } = await supabaseAdmin.rpc(
-      'hybrid_search_rrf',
-      {
+    const { data: ideaChunks, error: ideaSearchError } = await supabaseAdmin
+      .schema('public')
+      .rpc('hybrid_search_rrf', {
         p_query_text: ideaQuery,
         p_query_embedding: ideaQueryEmbedding,
         p_project_id: projectId,
         p_limit: 15, // 메모리뱅크 우선순위 적용 (가중치 1.2)
         p_memory_bank_weight: 1.2,
-      }
-    );
+      });
 
     if (ideaSearchError) {
       console.error('[ANALYSIS] Error searching for idea review chunks:', ideaSearchError);
@@ -80,16 +79,15 @@ export async function analyzeProject(
     const techQuery = '기술 스택 아키텍처 패턴 설계 원칙 시스템 구조';
     const techQueryEmbedding = await embedText(techQuery);
     
-    const { data: techChunks, error: techSearchError } = await supabaseAdmin.rpc(
-      'hybrid_search_rrf',
-      {
+    const { data: techChunks, error: techSearchError } = await supabaseAdmin
+      .schema('public')
+      .rpc('hybrid_search_rrf', {
         p_query_text: techQuery,
         p_query_embedding: techQueryEmbedding,
         p_project_id: projectId,
         p_limit: 15, // 메모리뱅크 우선순위 적용
         p_memory_bank_weight: 1.2,
-      }
-    );
+      });
 
     if (techSearchError) {
       console.error('[ANALYSIS] Error searching for tech review chunks:', techSearchError);
@@ -116,16 +114,15 @@ export async function analyzeProject(
     const patentQuery = `${ideaReview.substring(0, 200)} ${techReview.substring(0, 200)} 독창적인 기술 발명 아이디어 혁신`;
     const patentQueryEmbedding = await embedText(patentQuery);
     
-    const { data: patentChunks, error: patentSearchError } = await supabaseAdmin.rpc(
-      'hybrid_search_rrf',
-      {
+    const { data: patentChunks, error: patentSearchError } = await supabaseAdmin
+      .schema('public')
+      .rpc('hybrid_search_rrf', {
         p_query_text: patentQuery,
         p_query_embedding: patentQueryEmbedding,
         p_project_id: projectId,
         p_limit: 10,
         p_memory_bank_weight: 1.2,
-      }
-    );
+      });
 
     if (patentSearchError) {
       console.error('[ANALYSIS] Error searching for patent review chunks:', patentSearchError);
@@ -149,16 +146,15 @@ export async function analyzeProject(
     const overviewQuery = '프로젝트 개요 아키텍처 기술 스택 개발 현황 완료된 기능 예정 작업';
     const overviewQueryEmbedding = await embedText(overviewQuery);
     
-    const { data: overviewChunks, error: overviewSearchError } = await supabaseAdmin.rpc(
-      'hybrid_search_rrf',
-      {
+    const { data: overviewChunks, error: overviewSearchError } = await supabaseAdmin
+      .schema('public')
+      .rpc('hybrid_search_rrf', {
         p_query_text: overviewQuery,
         p_query_embedding: overviewQueryEmbedding,
         p_project_id: projectId,
         p_limit: 10,
         p_memory_bank_weight: 1.5, // memory_bank 파일에 더 높은 가중치
-      }
-    );
+      });
 
     let projectOverview = '';
     if (!overviewSearchError && overviewChunks && overviewChunks.length > 0) {

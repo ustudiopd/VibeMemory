@@ -78,10 +78,12 @@ export async function GET(
           });
         }
       } else {
-        // ingestion_runs가 없으면 기존 get_project_progress RPC 사용
-        const { data: progressData } = await supabaseAdmin.rpc('get_project_progress', {
-          p_project_id: projectId,
-        });
+        // ingestion_runs가 없으면 기존 get_project_progress RPC 사용 (public 래퍼 함수)
+        const { data: progressData } = await supabaseAdmin
+          .schema('public')
+          .rpc('get_project_progress', {
+            p_project_id: projectId,
+          });
 
         if (progressData) {
           sendEvent('phase', {
@@ -177,10 +179,12 @@ export async function GET(
               });
             }
           } else {
-            // ingestion_runs가 없으면 기존 get_project_progress RPC 사용 (fallback)
-            const { data: progressData } = await supabaseAdmin.rpc('get_project_progress', {
-              p_project_id: projectId,
-            });
+            // ingestion_runs가 없으면 기존 get_project_progress RPC 사용 (fallback, public 래퍼 함수)
+            const { data: progressData } = await supabaseAdmin
+              .schema('public')
+              .rpc('get_project_progress', {
+                p_project_id: projectId,
+              });
 
             if (progressData) {
               const isCompleted = progressData.P3?.core_done === progressData.P3?.core_total;

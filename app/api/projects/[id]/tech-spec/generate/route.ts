@@ -86,17 +86,16 @@ export async function POST(
 
     if (projectSearchError) {
       console.warn('[TECH-SPEC] search_project_chunks_rrf failed, falling back to hybrid_search_rrf:', projectSearchError);
-      // 폴백: 기존 hybrid_search_rrf 사용
-      const { data: hybridResults, error: hybridError } = await supabaseAdmin.rpc(
-        'hybrid_search_rrf',
-        {
+      // 폴백: 기존 hybrid_search_rrf 사용 (public 래퍼 함수)
+      const { data: hybridResults, error: hybridError } = await supabaseAdmin
+        .schema('public')
+        .rpc('hybrid_search_rrf', {
           p_query_text: searchQuery,
           p_query_embedding: queryEmbedding,
           p_project_id: projectId,
           p_limit: 15,
           p_memory_bank_weight: 1.2,
-        }
-      );
+        });
 
       if (hybridError) {
         console.error('[TECH-SPEC] hybrid_search_rrf also failed:', hybridError);

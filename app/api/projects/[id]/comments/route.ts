@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 프로젝트 소유권 확인
+    // 프로젝트 소유권 확인 (vibememory 스키마 명시)
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id, owner_id')
@@ -28,7 +28,7 @@ export async function GET(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // 댓글 목록 조회
+    // 댓글 목록 조회 (public 뷰 사용)
     const { data: comments, error: commentsError } = await supabaseAdmin
       .from('project_comments')
       .select('*')
@@ -82,7 +82,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 프로젝트 소유권 확인
+    // 프로젝트 소유권 확인 (public 뷰 사용)
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
       .select('id, owner_id')
@@ -94,7 +94,7 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // 댓글 생성
+    // 댓글 생성 (public 뷰 사용)
     const { data: comment, error: insertError } = await supabaseAdmin
       .from('project_comments')
       .insert({

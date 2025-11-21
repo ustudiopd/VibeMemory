@@ -21,6 +21,8 @@ export const supabase = createClient(
 );
 
 // Server-side Supabase client (for use in API routes with service role)
+// 기본 스키마를 public으로 설정 (PostgREST가 vibememory 스키마를 직접 노출하지 않음)
+// public 스키마의 뷰를 통해 vibememory 테이블에 접근
 export const supabaseAdmin = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseServiceRoleKey || 'placeholder-service-role-key',
@@ -28,6 +30,9 @@ export const supabaseAdmin = createClient(
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+    },
+    db: {
+      schema: 'public',  // public 뷰를 통해 접근 (vibememory 테이블은 뷰로 노출됨)
     },
   }
 );
